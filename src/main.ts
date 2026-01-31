@@ -74,7 +74,11 @@ export type TasksFromFns<T extends Record<string, (...args: any) => any>> = {
 };
 
 // --- typed schema ---
-export type TaskSchemaWithContracts<T extends TaskMap, I, O> = {
+export type TaskSchemaWithContracts<
+	T extends TaskMap,
+	I extends Record<string, any>,
+	O,
+> = {
 	[K in keyof T]: T[K] extends TaskDefinition<infer F, any, any>
 		? TaskDefinition<F, T, I>
 		: never;
@@ -84,7 +88,11 @@ export type TaskSchemaWithContracts<T extends TaskMap, I, O> = {
 };
 
 // --- defineSchema ---
-export function defineSchema<T extends TaskMap, I, O>(
+export function defineSchema<
+	T extends TaskMap,
+	I extends Record<string, any>,
+	O,
+>(
 	schema: {
 		[K in keyof T]: T[K] extends TaskDefinition<infer F, any, any>
 			? TaskDefinition<F, T, I>
@@ -157,7 +165,7 @@ function markDependentsSkipped<T extends TaskMap>(
 
 // --- runSchema, storing **only success data** ---
 export const runSchema = withResponse(
-	async <T extends TaskMap, I, O>(
+	async <T extends TaskMap, I extends Record<string, any>, O>(
 		schema: TaskSchemaWithContracts<T, I, O>,
 		initArgs: I,
 		options?: SchemaOptions,
@@ -246,7 +254,7 @@ export const runSchema = withResponse(
 							if (task.abort) throw result;
 						} else if (isSuccess(result)) {
 							status[key] = "success";
-							(results as any)[key] = result.data; // ✅ unwrap data automatically
+							(results as any)[key] = result.data;
 							logger?.("success", String(key), result);
 						}
 					} catch (err) {
@@ -272,7 +280,6 @@ export const runSchema = withResponse(
 
 			return { _output: output, _status: status as Record<keyof T, TaskState> };
 		} catch (err) {
-			console.error("🔥 runSchema crashed before finish:", err);
 			throw err;
 		}
 	},
