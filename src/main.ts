@@ -2,10 +2,8 @@ import {
 	isFailure,
 	isSuccess,
 	withResponse,
-	type TResponse,
 	type SuccessResponse,
-	type FailureResponse,
-} from "@repo/tresponse";
+} from "@pogodisco/response";
 
 // --- logging / options ---
 export type LogEvent =
