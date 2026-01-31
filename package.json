@@ -31,10 +31,10 @@
     "dev": "tsc -w -p tsconfig.json"
   },
   "peerDependencies": {
-    "@pogodisco/response": "^0.0.1",
+    "@pogodisco/response": "~0.0.1",
     "typescript": "^5.0.0"
   },
   "devDependecies": {
-    "@pogodisco/response": "^0.0.1"
+    "@pogodisco/response": "~0.0.1"
   }
 }
