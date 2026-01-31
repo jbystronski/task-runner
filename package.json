@@ -1,8 +1,18 @@
 {
-  "name": "@repo/task-runner",
+  "name": "@pogodisco/task-runner",
   "version": "0.0.1",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Jakub Bystroński",
+  "description": "run tasks organized in a hierarchical schema",
+  "keywords": [
+    "schema",
+    "task",
+    "typescript"
+  ],
   "type": "module",
+  "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -13,13 +23,15 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
+    "build": "tsc",
     "dev": "tsc -w -p tsconfig.json"
   },
   "peerDependencies": {
-    "@repo/tresponse": "^0.0.1"
+    "@pogodisco/response": "^0.0.1",
+    "typescript": "^5.0.0"
   },
-  "devDependencies": {
-    "@repo/tresponse": "workspace:*"
+  "devDependecies": {
+    "@pogodisco/response": "^0.0.1"
   }
 }
