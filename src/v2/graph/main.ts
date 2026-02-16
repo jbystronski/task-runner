@@ -1,3 +1,4 @@
+import { withResponse } from "@pogodisco/response";
 import {
 	GraphBuilder,
 	GraphEdge,
@@ -48,40 +49,74 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 
 	return builder;
 }
+// export async function runGraph<
+// 	Nodes extends Record<string, GraphNode<any>>,
+// 	Init,
+// >(
+// 	graph: SchemaGraph<Nodes, Init>,
+// 	initArgs: Init,
+// ): Promise<RuntimeCtx<Nodes, Init>> {
+// 	const ctx: RuntimeCtx<Nodes, Init> = {
+// 		_init: initArgs,
+// 		results: {} as any,
+// 	};
+//
+// 	const queue: (keyof Nodes)[] = [graph.entry];
+// 	const visited = new Set<keyof Nodes>();
+//
+// 	while (queue.length) {
+// 		const nodeName = queue.shift()!;
+// 		if (visited.has(nodeName)) continue;
+//
+// 		const node = graph.nodes[nodeName];
+// 		const input = node.mapInput ? node.mapInput(ctx) : ctx._init;
+// 		const res = await node.schema(input);
+// 		if (!res.ok) throw res;
+//
+// 		ctx.results[nodeName] = res.data;
+// 		visited.add(nodeName);
+//
+// 		const nextEdges = graph.edges.filter(
+// 			(e) => e.from === nodeName && (!e.when || e.when(ctx)),
+// 		);
+//
+// 		for (const e of nextEdges) queue.push(e.to);
+// 	}
+//
+// 	return ctx;
+// }
+export const runGraph = withResponse(
+	async <Nodes extends Record<string, GraphNode<any>>, Init>(
+		graph: SchemaGraph<Nodes, Init>,
+		initArgs: Init,
+	): Promise<RuntimeCtx<Nodes, Init>> => {
+		const ctx: RuntimeCtx<Nodes, Init> = {
+			_init: initArgs,
+			results: {} as any,
+		};
 
-export async function runGraph<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
->(
-	graph: SchemaGraph<Nodes, Init>,
-	initArgs: Init,
-): Promise<RuntimeCtx<Nodes, Init>> {
-	const ctx: RuntimeCtx<Nodes, Init> = {
-		_init: initArgs,
-		results: {} as any,
-	};
+		const queue: (keyof Nodes)[] = [graph.entry];
+		const visited = new Set<keyof Nodes>();
 
-	const queue: (keyof Nodes)[] = [graph.entry];
-	const visited = new Set<keyof Nodes>();
+		while (queue.length) {
+			const nodeName = queue.shift()!;
+			if (visited.has(nodeName)) continue;
 
-	while (queue.length) {
-		const nodeName = queue.shift()!;
-		if (visited.has(nodeName)) continue;
+			const node = graph.nodes[nodeName];
+			const input = node.mapInput ? node.mapInput(ctx) : ctx._init;
+			const res = await node.schema(input);
+			if (!res.ok) throw res;
 
-		const node = graph.nodes[nodeName];
-		const input = node.mapInput ? node.mapInput(ctx) : ctx._init;
-		const res = await node.schema(input);
-		if (!res.ok) throw res;
+			ctx.results[nodeName] = res.data;
+			visited.add(nodeName);
 
-		ctx.results[nodeName] = res.data;
-		visited.add(nodeName);
+			const nextEdges = graph.edges.filter(
+				(e) => e.from === nodeName && (!e.when || e.when(ctx)),
+			);
 
-		const nextEdges = graph.edges.filter(
-			(e) => e.from === nodeName && (!e.when || e.when(ctx)),
-		);
+			for (const e of nextEdges) queue.push(e.to);
+		}
 
-		for (const e of nextEdges) queue.push(e.to);
-	}
-
-	return ctx;
-}
+		return ctx;
+	},
+);

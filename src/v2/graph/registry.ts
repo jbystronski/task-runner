@@ -1,3 +1,4 @@
+import { TResponse } from "@pogodisco/response";
 import { runGraph } from "./main.js";
 import { RuntimeCtx, SchemaGraph } from "./types/index.js";
 
@@ -17,16 +18,32 @@ export type GraphOutputFor<
 // -----------------------------
 // Public registrar type (IMPORTANT)
 // -----------------------------
+// export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
+// 	K extends keyof R & string,
+// >(
+// 	name: K,
+// 	params: GraphInputFor<R, K>,
+// ) => Promise<GraphOutputFor<R, K>>;
+
 export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
 	K extends keyof R & string,
 >(
 	name: K,
 	params: GraphInputFor<R, K>,
-) => Promise<GraphOutputFor<R, K>>;
+) => Promise<TResponse<GraphOutputFor<R, K>>>;
 
 // -----------------------------
 // Factory
 // -----------------------------
+// export function createGraphRegistrar<
+// 	R extends Record<string, SchemaGraph<any, any>>,
+// >(registry: R): GraphRegistrar<R> {
+// 	return async (name, params) => {
+// 		const graph = registry[name];
+// 		return runGraph(graph, params) as any;
+// 	};
+// }
+
 export function createGraphRegistrar<
 	R extends Record<string, SchemaGraph<any, any>>,
 >(registry: R): GraphRegistrar<R> {
