@@ -28,7 +28,11 @@
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -w -p tsconfig.json"
+    "dev": "tsc -w -p tsconfig.json",
+    "test:types": "tsd"
+  },
+  "tsd": {
+    "directory": "test-dts"
   },
   "peerDependencies": {
     "@pogodisco/response": "~0.0.1",
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@pogodisco/response": "~0.0.1",
     "chalk": "^5.6.2",
-    "pretty-format": "^30.2.0"
+    "pretty-format": "^30.2.0",
+    "tsd": "^0.33.0"
   }
 }
