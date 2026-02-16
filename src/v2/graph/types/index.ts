@@ -19,10 +19,16 @@ export type RuntimeCtx<Nodes extends Record<string, GraphNode<any>>, Init> = {
 	};
 };
 
-export type GraphEdge<NodeKeys extends keyof any> = {
-	from: NodeKeys;
-	to: NodeKeys;
-	when?: (ctx: any) => boolean;
+// export type GraphEdge<NodeKeys extends keyof any> = {
+// 	from: NodeKeys;
+// 	to: NodeKeys;
+// 	when?: (ctx: any) => boolean;
+// };
+
+export type GraphEdge<Nodes extends Record<string, GraphNode<any>>, Init> = {
+	from: keyof Nodes;
+	to: keyof Nodes;
+	when?: (ctx: RuntimeCtx<Nodes, Init>) => boolean;
 };
 
 export type BuiltNode<
@@ -33,7 +39,7 @@ export type BuiltNode<
 export type SchemaGraph<Nodes extends Record<string, GraphNode<any>>, Init> = {
 	entry: keyof Nodes;
 	nodes: Nodes;
-	edges: GraphEdge<keyof Nodes>[];
+	edges: GraphEdge<Nodes, Init>[];
 };
 
 export type GraphBuilder<
@@ -51,6 +57,7 @@ export type GraphBuilder<
 	edge<From extends keyof Nodes, To extends keyof Nodes>(
 		from: From,
 		to: To,
+		when?: (ctx: RuntimeCtx<Nodes, Init>) => boolean,
 	): GraphBuilder<Nodes, Init>;
 
 	build(): SchemaGraph<Nodes, Init>;

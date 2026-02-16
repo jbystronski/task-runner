@@ -27,12 +27,12 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 			return builder as any;
 		},
 
-		edge(from, to) {
+		edge(from, to, when) {
 			// if (!(from in nodes))
 			// 	throw new Error(`Edge 'from' node "${from}" does not exist`);
 			// if (!(to in nodes))
 			// 	throw new Error(`Edge 'to' node "${to}" does not exist`);
-			edges.push({ from, to });
+			edges.push({ from, to, when });
 			return builder;
 		},
 
