@@ -6,18 +6,18 @@ import {
 	SchemaGraph,
 } from "./types/index.js";
 
-//  function edge<K extends keyof any>(
-// 	from: K,
-// 	to: K,
-// 	when?: (ctx: any) => boolean,
-// ): GraphEdge<K> {
-// 	return { from, to, when };
-// }
+export function edge<K extends keyof any>(
+	from: K,
+	to: K,
+	when?: (ctx: any) => boolean,
+): GraphEdge<K> {
+	return { from, to, when };
+}
 
 export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 	const nodes: Record<string, GraphNode<any>> = {};
 	// const edges: GraphEdge<string>[] = [];
-	const edges: GraphEdge<any, Init>[] = [];
+	const edges: GraphEdge<keyof any>[] = [];
 	let entry: string | undefined;
 
 	const builder: GraphBuilder<any, Init> = {
@@ -27,7 +27,11 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 			return builder as any;
 		},
 
-		edge(from, to, when) {
+		edge(from, to, when?: any) {
+			// if (!(from in nodes))
+			// 	throw new Error(`Edge 'from' node "${from}" does not exist`);
+			// if (!(to in nodes))
+			// 	throw new Error(`Edge 'to' node "${to}" does not exist`);
 			edges.push({ from, to, when });
 			return builder;
 		},
