@@ -1,7 +1,7 @@
 import chalk from "chalk";
 
 import { format } from "pretty-format";
-import { TaskLogger, LogEvent } from "../types/index.js";
+import { TaskLogger, LogEvent } from "../src/index.js";
 
 const startTimes = new Map<string, number>();
 
