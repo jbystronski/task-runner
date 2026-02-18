@@ -11,13 +11,33 @@ import {
 } from "./types/index.js";
 
 // --- defineSchema ---
+// export function defineSchema<
+// 	T extends TaskMap,
+// 	I extends Record<string, any>,
+// 	O,
+// >(
+// 	schema: {
+// 		[K in keyof T]: T[K] extends TaskDefinition<infer F, any, any>;
+// 	} & {
+// 		_output: (
+// 			results: TaskResultsData<T, I>,
+// 			status?: Record<keyof T, TaskState>,
+// 		) => O;
+// 	},
+// ): TaskSchemaWithContracts<T, I, O> {
+// 	preflightCheck(schema);
+// 	return schema as any;
+// }
+
 export function defineSchema<
 	T extends TaskMap,
 	I extends Record<string, any>,
 	O,
 >(
 	schema: {
-		[K in keyof T]: TaskDefinition<any, T, I>;
+		[K in keyof T]: T[K] extends TaskDefinition<infer F, any, any>
+			? TaskDefinition<F, T, I>
+			: never;
 	} & {
 		_output: (
 			results: TaskResultsData<T, I>,
