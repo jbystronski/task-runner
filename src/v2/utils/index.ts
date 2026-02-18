@@ -1,2 +1,2 @@
-export { wrapSchema } from "./wrap-schema.js";
-export { makeSchema } from "./make-schema.js";
+export { callableNode } from "./callable-node.js";
+export { makeNode } from "./make-node.js";

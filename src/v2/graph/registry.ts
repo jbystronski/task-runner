@@ -1,6 +1,6 @@
 import { TResponse } from "@pogodisco/response";
 import { runGraph } from "./main.js";
-import { RuntimeCtx, SchemaGraph } from "./types/index.js";
+import { GraphRunOptions, RuntimeCtx, SchemaGraph } from "./types/index.js";
 
 // -----------------------------
 // Input / Output helpers
@@ -30,6 +30,7 @@ export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
 >(
 	name: K,
 	params: GraphInputFor<R, K>,
+	opts?: GraphRunOptions,
 ) => Promise<TResponse<GraphOutputFor<R, K>>>;
 
 // -----------------------------
@@ -47,8 +48,8 @@ export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
 export function createGraphRegistrar<
 	R extends Record<string, SchemaGraph<any, any>>,
 >(registry: R): GraphRegistrar<R> {
-	return async (name, params) => {
+	return async (name, params, opts) => {
 		const graph = registry[name];
-		return runGraph(graph, params) as any;
+		return runGraph(graph, params, opts) as any;
 	};
 }

@@ -1,12 +1,12 @@
 import {
 	createGraph,
-	defineSchema,
+	defineNode,
 	type TasksFromFns,
-	wrapSchema,
+	callableNode,
 	runGraph,
 } from "../dist/index.js";
 
-export const schema = defineSchema<
+export const node = defineNode<
 	TasksFromFns<{}>,
 	{ foo: string },
 	{ data: string }
@@ -15,7 +15,7 @@ export const schema = defineSchema<
 });
 
 const g = createGraph<{ foo: string }>()
-	.node("one", wrapSchema(schema))
+	.node("one", callableNode(node))
 	.build();
 
 await runGraph(g, { foo: "ok" });

@@ -1,7 +1,7 @@
 import chalk from "chalk";
 
 import { format } from "pretty-format";
-import { TaskLogger, LogEvent } from "../src/index.js";
+import { TaskLogger, LogEvent, GraphLogger } from "../src/index.js";
 
 const startTimes = new Map<string, number>();
 
@@ -142,3 +142,33 @@ function logResult(result: unknown) {
 export const useLogger = () => {
 	return advancedLogger;
 };
+
+export const graphLoggerFromTaskLogger =
+	(taskLogger: TaskLogger): GraphLogger =>
+	(event, node, meta) => {
+		switch (event) {
+			case "node_start":
+				taskLogger("start", node, meta?.input);
+				break;
+
+			case "node_success":
+				taskLogger("success", node, meta?.output);
+				break;
+
+			case "node_fail":
+				taskLogger("fail", node, meta?.error);
+				break;
+
+			case "node_skip":
+				taskLogger("skipped", node, meta);
+				break;
+
+			case "node_background":
+				taskLogger("background", node, meta);
+				break;
+
+			case "graph_finish":
+				taskLogger("finish", node, meta);
+				break;
+		}
+	};

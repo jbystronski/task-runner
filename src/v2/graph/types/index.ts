@@ -1,5 +1,20 @@
 import { TResponse } from "@pogodisco/response";
 
+// graph-logger.ts
+
+export type GraphLogEvent =
+	| "node_start"
+	| "node_success"
+	| "node_fail"
+	| "node_skip"
+	| "node_background"
+	| "graph_finish";
+
+export type GraphLogger = (
+	event: GraphLogEvent,
+	node: string,
+	meta?: any,
+) => void;
 export type WrappedSchema<I, O> = (args: I) => Promise<TResponse<O>>;
 
 export type ExtractInput<T> = T extends WrappedSchema<infer I, any> ? I : never;
@@ -10,13 +25,50 @@ export type ExtractOutput<T> = T extends WrappedSchema<any, infer O>
 export type GraphNode<FN extends WrappedSchema<any, any>> = {
 	schema: FN;
 	mapInput?: (ctx: any) => ExtractInput<FN>;
+	runtime?: NodeRuntimeConfig;
+};
+
+export type NodeMetric = {
+	start: number;
+	end?: number;
+	duration?: number;
+	status: "success" | "fail" | "skipped";
+	attempts: number;
+};
+
+export type GraphEvent =
+	| { type: "node_start"; node: string; input: any; timestamp: number }
+	| {
+			type: "node_success";
+			node: string;
+			output: any;
+			duration: number;
+			timestamp: number;
+	  }
+	| { type: "node_fail"; node: string; error: any; timestamp: number }
+	| { type: "node_skip"; node: string; reason?: string; timestamp: number }
+	| { type: "node_background"; node: string; timestamp: number }
+	| { type: "graph_finish"; metrics: any; results: any; timestamp: number };
+// export type GraphTraceEvent = Pick<GraphEvent, "type" | "node">;
+// export type GraphTraceEvent =
+// 	| { type: "node_start"; node: string }
+// 	| { type: "node_success"; node: string }
+// 	| { type: "node_fail"; node: string }
+// 	| { type: "node_background"; node: string }
+// 	| { type: "node_skip"; node: string };
+
+export type GraphResults<N extends Record<string, GraphNode<any>>> = {
+	[K in keyof N]: ExtractOutput<N[K]["schema"]>;
 };
 
 export type RuntimeCtx<Nodes extends Record<string, GraphNode<any>>, Init> = {
 	_init: Init;
-	results: {
-		[K in keyof Nodes]: ExtractOutput<Nodes[K]["schema"]>;
-	};
+	results: { [K in keyof Nodes]: ExtractOutput<Nodes[K]["schema"]> };
+
+	metrics: Record<string, NodeMetric>;
+	trace: GraphEvent[];
+
+	pending: Record<string, Promise<any>>;
 };
 
 export type GraphEdge<NodeKeys extends keyof any> = {
@@ -46,6 +98,7 @@ export type GraphBuilder<
 		mapInput?: (
 			ctx: RuntimeCtx<Nodes & Record<K, GraphNode<FN>>, Init>,
 		) => ExtractInput<FN>,
+		runtime?: NodeRuntimeConfig,
 	): GraphBuilder<Nodes & Record<K, GraphNode<FN>>, Init>;
 
 	edge<From extends keyof Nodes, To extends keyof Nodes>(
@@ -83,3 +136,15 @@ export type GraphOutput<K extends keyof GraphRegistry> =
 		: never;
 
 export interface GraphRegistry {}
+
+export type NodeRuntimeConfig = {
+	background?: boolean;
+	retry?: number;
+	timeoutMs?: number;
+	when?: (ctx: RuntimeCtx<any, any>) => boolean | Promise<boolean>;
+};
+
+export type GraphRunOptions = {
+	concurrency?: number;
+	log?: GraphLogger;
+};

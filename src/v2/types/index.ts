@@ -31,7 +31,7 @@ export type LogEvent =
 
 export type TaskLogger = (event: LogEvent, key: string, meta?: any) => void;
 
-export interface SchemaOptions {
+export interface NodeOptions {
 	log?: TaskLogger;
 	parallel?: boolean;
 }
@@ -46,12 +46,9 @@ export type TaskDefinition<
 	I extends Record<string, any>,
 > = {
 	fn: F;
-	dependencies?: string[];
+	dependencies?: (keyof T)[];
 	abort?: boolean;
-	bg?: boolean;
-	runIf?: ((results: TaskResultsData<T, I>) => boolean | Promise<boolean>)[];
 	argMap?: (results: TaskResultsData<T, I>) => Parameters<F>[0];
-	returnImmediately?: boolean;
 };
 
 export type TaskMap = Record<string, TaskDefinition<any, any, any>>;
@@ -74,7 +71,7 @@ export type TasksFromFns<T extends Record<string, (...args: any) => any>> = {
 };
 
 // --- typed schema ---
-export type TaskSchemaWithContracts<
+export type TaskNodeWithContracts<
 	T extends TaskMap,
 	I extends Record<string, any>,
 	O,

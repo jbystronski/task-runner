@@ -1,5 +1,5 @@
-export { runSchema, defineSchema } from "./main.js";
-export { wrapSchema, makeSchema } from "./utils/index.js";
+export { callNode, defineNode } from "./main.js";
+export { callableNode, makeNode } from "./utils/index.js";
 export * from "./graph/index.js";
 
 export * from "./types/index.js";
