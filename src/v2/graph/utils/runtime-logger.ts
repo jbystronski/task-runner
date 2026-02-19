@@ -16,6 +16,7 @@ export const runtimeLogger: GraphLogger = (event, node, meta) => {
 		...setIfPresent("error", meta?.error),
 		...setIfPresent("duration", meta?.duration),
 		...setIfPresent("reason", meta?.reason),
+		...setIfPresent("pool", meta?.pool),
 		...setIfPresent("metrics", meta?.metrics),
 
 		timestamp,

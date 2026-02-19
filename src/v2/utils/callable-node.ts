@@ -1,15 +1,6 @@
 import { withResponse } from "@pogodisco/response";
-import { NodeOptions, TaskMap, TaskNodeWithContracts } from "../types/index.js";
+import { TaskMap, TaskNodeWithContracts } from "../types/index.js";
 import { callNode } from "../main.js";
-
-// export function wrapSchema(schema) {
-// 	return withResponse(async (init) => {
-// 		const res = await runSchema(schema, init);
-// 		if (!res.ok) throw res;
-// 		return res.data._output;
-// 	});
-// }
-//
 
 export function callableNode<
 	T extends TaskMap,
