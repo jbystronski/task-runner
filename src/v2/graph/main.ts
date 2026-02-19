@@ -4,6 +4,7 @@ import {
 	GraphEdge,
 	GraphLogger,
 	GraphNode,
+	GraphOpts,
 	NodeMetric,
 	RuntimeCtx,
 	SchemaGraph,
@@ -56,11 +57,7 @@ export const runGraph = withResponse(
 	async <Nodes extends Record<string, GraphNode<any>>, Init>(
 		graph: SchemaGraph<Nodes, Init>,
 		initArgs: Init,
-		opts?: {
-			concurrency?: number;
-			log?: GraphLogger;
-			pools?: Record<string, number>;
-		},
+		opts?: GraphOpts,
 	) => {
 		// -----------------------------
 		// CONTEXT

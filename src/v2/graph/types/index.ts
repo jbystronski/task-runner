@@ -2,6 +2,12 @@ import { TResponse } from "@pogodisco/response";
 
 // graph-logger.ts
 
+export type GraphOpts = {
+	concurrency?: number;
+	log?: GraphLogger;
+	pools?: Record<string, number>;
+};
+
 export type GraphLogEvent =
 	| "node_start"
 	| "node_success"
