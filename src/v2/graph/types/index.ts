@@ -37,17 +37,36 @@ export type NodeMetric = {
 };
 
 export type GraphEvent =
-	| { type: "node_start"; node: string; input: any; timestamp: number }
+	| {
+			type: "node_start";
+			node: string;
+			input: any;
+			timestamp: number;
+			pool?: string;
+	  }
 	| {
 			type: "node_success";
 			node: string;
 			output: any;
 			duration: number;
 			timestamp: number;
+			pool?: string;
 	  }
-	| { type: "node_fail"; node: string; error: any; timestamp: number }
-	| { type: "node_skip"; node: string; reason?: string; timestamp: number }
-	| { type: "node_background"; node: string; timestamp: number }
+	| {
+			type: "node_fail";
+			node: string;
+			error: any;
+			timestamp: number;
+			pool?: string;
+	  }
+	| {
+			type: "node_skip";
+			node: string;
+			reason?: string;
+			timestamp: number;
+			pool?: string;
+	  }
+	| { type: "node_background"; node: string; timestamp: number; pool?: string }
 	| { type: "graph_finish"; metrics: any; results: any; timestamp: number };
 // export type GraphTraceEvent = Pick<GraphEvent, "type" | "node">;
 // export type GraphTraceEvent =
@@ -142,9 +161,11 @@ export type NodeRuntimeConfig = {
 	retry?: number;
 	timeoutMs?: number;
 	when?: (ctx: RuntimeCtx<any, any>) => boolean | Promise<boolean>;
+	pool?: string;
 };
 
 export type GraphRunOptions = {
 	concurrency?: number;
 	log?: GraphLogger;
+	pools?: Record<string, number>;
 };
