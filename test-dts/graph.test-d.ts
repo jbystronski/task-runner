@@ -2,7 +2,7 @@ import {
 	createGraph,
 	defineNode,
 	type TasksFromFns,
-	callableNode,
+	useNode,
 	runGraph,
 } from "../dist/index.js";
 
@@ -15,7 +15,7 @@ export const node = defineNode<
 });
 
 const g = createGraph<{ foo: string }>()
-	.node("one", callableNode(node))
+	.node("one", useNode(node))
 	.build();
 
 await runGraph(g, { foo: "ok" });
