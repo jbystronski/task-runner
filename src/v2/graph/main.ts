@@ -2,7 +2,6 @@ import { withResponse } from "@pogodisco/response";
 import {
 	GraphBuilder,
 	GraphEdge,
-	GraphLogger,
 	GraphNode,
 	GraphOptions,
 	NodeMetric,
