@@ -2,6 +2,11 @@ import { TResponse } from "@pogodisco/response";
 
 // graph-logger.ts
 
+export type GraphOptions = {
+	concurrency?: number;
+	log?: GraphLogger;
+};
+
 export type GraphLogEvent =
 	| "node_start"
 	| "node_success"
@@ -63,13 +68,38 @@ export type GraphEvent =
 // 	| { type: "node_background"; node: string }
 // 	| { type: "node_skip"; node: string };
 
+type UnwrapNestedGraph<T> = T extends RuntimeCtx<any, any>
+	? T["results"] // If it's a RuntimeCtx, extract its results
+	: T extends { results: infer R }
+		? R // If it has a results property, use that
+		: T; // Otherwise return as-is
+
+export type NodeOutput<T> = T extends WrappedSchema<any, infer O>
+	? O extends RuntimeCtx<infer N, any>
+		? GraphResults<N> // Recursively extract nested graph results
+		: O extends { results: infer R }
+			? R // Extract results property if present
+			: O // Otherwise return output directly
+	: never;
+
+// Updated GraphResults that recursively unwraps nested graphs
 export type GraphResults<N extends Record<string, GraphNode<any>>> = {
-	[K in keyof N]: ExtractOutput<N[K]["schema"]>;
+	[K in keyof N]: NodeOutput<N[K]["schema"]>;
 };
 
+// Helper to get nodes type from a graph
+export type InferGraphNodes<G> = G extends SchemaGraph<infer N, any>
+	? N
+	: never;
+
+// Helper to get results type from a graph
+export type InferGraphResults<G> = G extends SchemaGraph<infer N, any>
+	? GraphResults<N>
+	: never;
 export type RuntimeCtx<Nodes extends Record<string, GraphNode<any>>, Init> = {
 	_init: Init;
-	results: { [K in keyof Nodes]: ExtractOutput<Nodes[K]["schema"]> };
+
+	results: GraphResults<Nodes>; //
 
 	metrics: Record<string, NodeMetric>;
 	trace: GraphEvent[];
@@ -125,10 +155,6 @@ export type GraphEntryInput<G extends SchemaGraph<any, any>> =
 
 export type GraphNodes<G> = G extends SchemaGraph<infer Nodes, any>
 	? Nodes
-	: never;
-
-export type InferGraphNodes<G> = G extends SchemaGraph<infer N, any>
-	? N
 	: never;
 
 export type InferGraphInit<G> = G extends SchemaGraph<any, infer I> ? I : never;

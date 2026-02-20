@@ -4,10 +4,12 @@ import {
 	GraphEdge,
 	GraphLogger,
 	GraphNode,
+	GraphOptions,
 	NodeMetric,
 	RuntimeCtx,
 	SchemaGraph,
 } from "./types/index.js";
+import { GraphResult } from "./utils/projection.js";
 
 export function edge<K extends keyof any>(
 	from: K,
@@ -56,7 +58,7 @@ export const runGraph = withResponse(
 	async <Nodes extends Record<string, GraphNode<any>>, Init>(
 		graph: SchemaGraph<Nodes, Init>,
 		initArgs: Init,
-		opts?: { concurrency?: number; log?: GraphLogger },
+		opts?: GraphOptions,
 	) => {
 		const concurrency = opts?.concurrency ?? 4;
 		const logger = opts?.log;
@@ -282,6 +284,6 @@ export const runGraph = withResponse(
 			traceLength: ctx.trace.length,
 		});
 
-		return ctx;
+		return new GraphResult(ctx);
 	},
 );
