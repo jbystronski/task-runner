@@ -9,62 +9,6 @@ import {
 	InferGraphNodes,
 } from "../types/index.js";
 
-// export function useGraph<G extends SchemaGraph<any, any>>(
-// 	graph: G,
-// 	opts?: GraphOptions & { prefix?: string },
-// ) {
-// 	return withResponse(
-// 		async (initArgs: InferGraphInit<G>): Promise<InferGraphResults<G>> => {
-// 			const res = await runGraph(graph, initArgs, opts);
-// 			if (!res.ok) throw res;
-//
-// 			if (opts?.prefix) {
-// 				const prefixedResults: Record<string, any> = {};
-// 				for (const [key, value] of Object.entries(res.data.results)) {
-// 					prefixedResults[`${opts.prefix}_${key}`] = value;
-// 				}
-// 				return prefixedResults;
-// 			}
-//
-// 			// Return just the results, not the full context
-// 			return res.data.results;
-// 		},
-// 	);
-// }
-
-// export function useGraph<G extends SchemaGraph<any, any>>(
-// 	graph: G,
-// 	opts?: GraphOptions & { prefix?: string },
-// ) {
-// 	return withResponse(
-// 		async (
-// 			initArgs: InferGraphInit<G>,
-// 		): Promise<GraphResults<InferGraphNodes<G>>> => {
-// 			const res = await runGraph(graph, initArgs, opts);
-// 			if (!res.ok) throw res;
-//
-// 			console.log("INIT ARGS IN SUB GRAPH", initArgs);
-// 			// if (opts?.prefix) {
-// 			// 	const prefixedResults: Record<string, any> = {};
-// 			// 	const results = res.data.results; // Now we have direct property access
-// 			//
-// 			// 	for (const [key, value] of Object.entries(results)) {
-// 			// 		if (value && typeof value === "object" && "results" in value) {
-// 			// 			// Handle nested graph results
-// 			// 			prefixedResults[`${opts.prefix}_${key}`] = value.results;
-// 			// 		} else {
-// 			// 			prefixedResults[`${opts.prefix}_${key}`] = value;
-// 			// 		}
-// 			// 	}
-// 			// 	return prefixedResults as GraphResults<InferGraphNodes<G>>;
-// 			// }
-//
-// 			return res.data.results;
-// 		},
-// 	);
-// }
-
-// useGraph.ts
 export function useGraph<G extends SchemaGraph<any, any>>(
 	graph: G,
 	opts?: GraphOptions & { prefix?: string },
@@ -96,21 +40,6 @@ export function useGraph<G extends SchemaGraph<any, any>>(
 					});
 				}
 			}
-
-			// Handle prefixing of results if needed
-			// if (opts?.prefix) {
-			// 	const prefixedResults: Record<string, any> = {};
-			// 	const results = res.data.results;
-			//
-			// 	for (const [key, value] of Object.entries(results)) {
-			// 		if (value && typeof value === "object" && "results" in value) {
-			// 			prefixedResults[`${opts.prefix}_${key}`] = value.results;
-			// 		} else {
-			// 			prefixedResults[`${opts.prefix}_${key}`] = value;
-			// 		}
-			// 	}
-			// 	return prefixedResults as GraphResults<InferGraphNodes<G>>;
-			// }
 
 			return res.data.results;
 		},
