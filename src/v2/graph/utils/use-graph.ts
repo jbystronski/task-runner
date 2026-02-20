@@ -7,8 +7,10 @@ import {
 	InferGraphResults,
 	GraphResults,
 	InferGraphNodes,
+	RuntimeCtx,
 } from "../types/index.js";
 
+// useGraph.ts
 export function useGraph<G extends SchemaGraph<any, any>>(
 	graph: G,
 	opts?: GraphOptions & { prefix?: string },
@@ -34,9 +36,10 @@ export function useGraph<G extends SchemaGraph<any, any>>(
 
 				// Merge nested trace into parent with prefixed node names
 				for (const event of res.data.trace) {
+					const n = event?.node ? `${prefix}.${event?.node}` : undefined;
 					parentCtx.trace.push({
 						...event,
-						node: `${prefix}.${event.node}`,
+						node: n,
 					});
 				}
 			}

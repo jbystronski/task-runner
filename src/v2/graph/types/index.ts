@@ -59,7 +59,13 @@ export type GraphEvent =
 	| { type: "node_fail"; node: string; error: any; timestamp: number }
 	| { type: "node_skip"; node: string; reason?: string; timestamp: number }
 	| { type: "node_background"; node: string; timestamp: number }
-	| { type: "graph_finish"; metrics: any; results: any; timestamp: number };
+	| {
+			type: "graph_finish";
+			metrics: any;
+			results: any;
+			timestamp: number;
+			node?: undefined;
+	  };
 // export type GraphTraceEvent = Pick<GraphEvent, "type" | "node">;
 // export type GraphTraceEvent =
 // 	| { type: "node_start"; node: string }
