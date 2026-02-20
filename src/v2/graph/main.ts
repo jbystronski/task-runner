@@ -18,41 +18,6 @@ export function edge<K extends keyof any>(
 	return { from, to, when };
 }
 
-export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
-	const nodes: Record<string, GraphNode<any>> = {};
-	// const edges: GraphEdge<string>[] = [];
-	const edges: GraphEdge<keyof any>[] = [];
-	let entry: string | undefined;
-
-	const builder: GraphBuilder<any, Init> = {
-		node(key, schema, mapInput, runtime) {
-			if (!entry) entry = key;
-			nodes[key] = { schema, mapInput, runtime };
-			return builder as any;
-		},
-
-		edge(from, to, when?: any) {
-			// if (!(from in nodes))
-			// 	throw new Error(`Edge 'from' node "${from}" does not exist`);
-			// if (!(to in nodes))
-			// 	throw new Error(`Edge 'to' node "${to}" does not exist`);
-			edges.push({ from, to, when });
-			return builder;
-		},
-
-		build() {
-			if (!entry) throw new Error("Graph must have an entry node");
-			return {
-				entry,
-				nodes: nodes as any,
-				edges: edges as any,
-			};
-		},
-	};
-
-	return builder;
-}
-
 export const runGraph = withResponse(
 	async <Nodes extends Record<string, GraphNode<any>>, Init>(
 		graph: SchemaGraph<Nodes, Init>,
