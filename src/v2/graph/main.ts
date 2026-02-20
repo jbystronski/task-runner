@@ -6,6 +6,7 @@ import {
 	GraphNode,
 	GraphOpts,
 	NodeMetric,
+	PoolStats,
 	RuntimeCtx,
 	SchemaGraph,
 } from "./types/index.js";
@@ -20,7 +21,6 @@ export function edge<K extends keyof any>(
 
 export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 	const nodes: Record<string, GraphNode<any>> = {};
-	// const edges: GraphEdge<string>[] = [];
 	const edges: GraphEdge<keyof any>[] = [];
 	let entry: string | undefined;
 
@@ -32,10 +32,6 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 		},
 
 		edge(from, to, when?: any) {
-			// if (!(from in nodes))
-			// 	throw new Error(`Edge 'from' node "${from}" does not exist`);
-			// if (!(to in nodes))
-			// 	throw new Error(`Edge 'to' node "${to}" does not exist`);
 			edges.push({ from, to, when });
 			return builder;
 		},
@@ -85,16 +81,38 @@ export const runGraph = withResponse(
 		}
 
 		const poolQueues = new Map<string, (keyof Nodes)[]>();
+		const poolStats = new Map<string, PoolStats>();
+
+		function ensurePoolStats(pool: string) {
+			if (!poolStats.has(pool)) {
+				poolStats.set(pool, {
+					queueDepth: 0,
+					activeWorkers: 0,
+					completed: 0,
+					failed: 0,
+					avgDurationMs: 0,
+					lastDurationMs: 0,
+					maxQueue: 1000,
+				});
+			}
+		}
 
 		function ensurePool(pool: string) {
 			if (!poolQueues.has(pool)) poolQueues.set(pool, []);
 			if (!poolConcurrency.has(pool)) {
 				poolConcurrency.set(pool, defaultConcurrency);
 			}
+			ensurePoolStats(pool);
 		}
 
 		function resolvePool(key: keyof Nodes): string {
 			return graph.nodes[key].runtime?.pool ?? "default";
+		}
+
+		function canSchedule(pool: string) {
+			const stats = poolStats.get(pool)!;
+			if (!stats.maxQueue) return true;
+			return stats.queueDepth < stats.maxQueue;
 		}
 
 		// -----------------------------
@@ -147,19 +165,24 @@ export const runGraph = withResponse(
 		}
 
 		// -----------------------------
-		// READY QUEUE
+		// READY QUEUES
 		// -----------------------------
-		for (const k of nodeKeys) {
-			if (!reachable.has(k)) continue;
-			const pool = resolvePool(k);
-			ensurePool(pool);
-			if (!poolQueues.get(pool)) poolQueues.set(pool, []);
-		}
-
 		function enqueueNode(key: keyof Nodes) {
 			const pool = resolvePool(key);
 			ensurePool(pool);
+
+			if (!canSchedule(pool)) {
+				logger?.("pool_backpressure" as any, pool, poolStats.get(pool));
+				return;
+			}
+
 			poolQueues.get(pool)!.push(key);
+			poolStats.get(pool)!.queueDepth++;
+		}
+
+		for (const k of nodeKeys) {
+			if (!reachable.has(k)) continue;
+			ensurePool(resolvePool(k));
 		}
 
 		for (const k of nodeKeys) {
@@ -168,7 +191,7 @@ export const runGraph = withResponse(
 		}
 
 		// -----------------------------
-		// EXECUTION
+		// EXECUTION STATE
 		// -----------------------------
 		let activeTasks = 0;
 		let graphDone = false;
@@ -187,14 +210,21 @@ export const runGraph = withResponse(
 			}
 		}
 
+		// -----------------------------
+		// EXECUTE NODE (Telemetry Correct)
+		// -----------------------------
 		async function executeNode(key: keyof Nodes) {
+			const pool = resolvePool(key);
+			ensurePool(pool);
+
+			const stats = poolStats.get(pool)!;
+
 			activeTasks++;
+			stats.activeWorkers++;
 
 			try {
 				const node = graph.nodes[key];
 				const runtime = node.runtime ?? {};
-
-				const pool = resolvePool(key);
 
 				const metric: NodeMetric = (ctx.metrics[key as string] = {
 					start: Date.now(),
@@ -206,17 +236,6 @@ export const runGraph = withResponse(
 					const ok = await runtime.when(ctx);
 					if (!ok) {
 						metric.status = "skipped";
-
-						ctx.trace.push({
-							type: "node_skip",
-							node: String(key),
-							timestamp: Date.now(),
-						});
-
-						logger?.("node_skip", String(key), {
-							reason: "runtime.when === false",
-						});
-
 						return;
 					}
 				}
@@ -225,15 +244,6 @@ export const runGraph = withResponse(
 
 				logger?.("node_start", String(key), {
 					input,
-					attempt: metric.attempts + 1,
-					pool,
-				});
-
-				ctx.trace.push({
-					type: "node_start",
-					node: String(key),
-					input,
-					timestamp: Date.now(),
 					pool,
 				});
 
@@ -265,63 +275,42 @@ export const runGraph = withResponse(
 						metric.duration = metric.end - metric.start;
 						metric.status = "success";
 
-						ctx.trace.push({
-							type: "node_success",
-							node: String(key),
-							output: res.data,
-							timestamp: Date.now(),
-							duration: metric.duration,
-						});
+						stats.completed++;
+						stats.lastDurationMs = metric.duration ?? 0;
 
-						logger?.("node_success", String(key), {
-							output: res.data,
-							duration: metric.duration,
-							attempts: metric.attempts,
-						});
+						stats.avgDurationMs =
+							stats.avgDurationMs === 0
+								? stats.lastDurationMs
+								: stats.avgDurationMs * 0.8 + stats.lastDurationMs * 0.2;
 
-						// UNLOCK NEXT
 						for (const edge of outgoing.get(key)!) {
 							const next = edge.to as keyof Nodes;
 							if (!reachable.has(next)) continue;
 							if (edge.when && !edge.when(ctx)) continue;
 
 							remainingDeps.set(next, remainingDeps.get(next)! - 1);
-							if (remainingDeps.get(next) === 0) {
-								enqueueNode(next);
-							}
+							if (remainingDeps.get(next) === 0) enqueueNode(next);
 						}
 
 						return;
 					} catch (err) {
 						if (attempt >= retryCount) {
 							metric.status = "fail";
-
-							ctx.trace.push({
-								error: err,
-								type: "node_fail",
-								node: String(key),
-								timestamp: Date.now(),
-							});
-
-							logger?.("node_fail", String(key), {
-								error: err,
-								attempts: metric.attempts,
-							});
-
+							stats.failed++;
 							throw err;
 						}
-
 						await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
 					}
 				}
 			} finally {
+				stats.activeWorkers--;
 				activeTasks--;
 				checkGraphDone();
 			}
 		}
 
 		// -----------------------------
-		// WORKER POOL
+		// WORKERS
 		// -----------------------------
 		async function poolWorker(pool: string) {
 			const queue = poolQueues.get(pool)!;
@@ -329,22 +318,25 @@ export const runGraph = withResponse(
 			while (true) {
 				const next = queue.shift();
 
-				if (!next) {
-					if (graphDone && pendingTasks.size === 0) return;
-					await new Promise((r) => setTimeout(r, 10)); // tiny polling
-					continue;
+				if (next) {
+					poolStats.get(pool)!.queueDepth = Math.max(
+						0,
+						poolStats.get(pool)!.queueDepth - 1,
+					);
 				}
 
-				const node = graph.nodes[next];
-				const runtime = node.runtime ?? {};
+				if (!next) {
+					if (graphDone && pendingTasks.size === 0) return;
+					await new Promise((r) => setTimeout(r, 10));
+					continue;
+				}
 
 				const execPromise = executeNode(next);
 				pendingTasks.add(execPromise);
 				execPromise.finally(() => pendingTasks.delete(execPromise));
 
-				if (!runtime.background) {
-					await execPromise;
-				}
+				const runtime = graph.nodes[next].runtime ?? {};
+				if (!runtime.background) await execPromise;
 			}
 		}
 
@@ -355,7 +347,6 @@ export const runGraph = withResponse(
 
 		for (const [pool, conc] of poolConcurrency) {
 			ensurePool(pool);
-
 			for (let i = 0; i < conc; i++) {
 				workerPromises.push(poolWorker(pool));
 			}
@@ -366,9 +357,8 @@ export const runGraph = withResponse(
 
 		logger?.("graph_finish", "_graph", {
 			metrics: ctx.metrics,
-			input: ctx._init,
+			pools: Object.fromEntries(poolStats),
 			output: ctx.results,
-			traceLength: ctx.trace.length,
 		});
 
 		return ctx;

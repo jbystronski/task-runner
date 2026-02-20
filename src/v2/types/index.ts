@@ -1,3 +1,5 @@
+// Pool stats
+
 export type TraceEventType =
 	| "start"
 	| "success"

@@ -1,6 +1,15 @@
 import { TResponse } from "@pogodisco/response";
 
 // graph-logger.ts
+export type PoolStats = {
+	queueDepth: number;
+	activeWorkers: number;
+	completed: number;
+	failed: number;
+	avgDurationMs: number;
+	lastDurationMs: number;
+	maxQueue?: number;
+};
 
 export type GraphOpts = {
 	concurrency?: number;
