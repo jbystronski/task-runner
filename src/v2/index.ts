@@ -1,4 +1,4 @@
-export { callNode, defineNode } from "./main.js";
+export { execNode, defineNode } from "./main.js";
 export { useNode, makeNode } from "./utils/index.js";
 export * from "./graph/index.js";
 

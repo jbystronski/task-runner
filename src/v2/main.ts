@@ -1,4 +1,3 @@
-import { withResponse } from "@pogodisco/response";
 import {
 	TaskMap,
 	TaskDefinition,
@@ -99,54 +98,53 @@ function buildTopologicalBatches<T extends TaskMap>(
 	return batches;
 }
 
-export const callNode = withResponse(
-	async <T extends TaskMap, I extends Record<string, any>, O>(
-		node: TaskNodeWithContracts<T, I, O>,
-		initArgs: I,
-	) => {
-		const results = { _init: initArgs } as any;
-		const status = {} as Record<keyof T, TaskState>;
+export const execNode = async <
+	T extends TaskMap,
+	I extends Record<string, any> | undefined,
+	O,
+>(
+	node: TaskNodeWithContracts<T, I, O>,
+	initArgs: I,
+) => {
+	const results = { _init: initArgs } as any;
+	const status = {} as Record<keyof T, TaskState>;
 
-		const taskKeys = Object.keys(node).filter(
-			(k) => k !== "_output",
-		) as (keyof T)[];
+	const taskKeys = Object.keys(node).filter(
+		(k) => k !== "_output",
+	) as (keyof T)[];
 
-		for (const k of taskKeys) status[k] = "pending";
+	for (const k of taskKeys) status[k] = "pending";
 
-		const batches = buildTopologicalBatches(node as any, taskKeys);
+	const batches = buildTopologicalBatches(node as any, taskKeys);
 
-		for (const batch of batches) {
-			for (const key of batch) {
-				const task = node[key];
+	for (const batch of batches) {
+		for (const key of batch) {
+			const task = node[key];
 
-				const deps = task.dependencies ?? [];
+			const deps = task.dependencies ?? [];
 
-				if (!deps.every((d) => status[d] === "success")) continue;
+			if (!deps.every((d) => status[d] === "success")) continue;
 
-				try {
-					const args = task.argMap?.(results) ?? initArgs;
+			try {
+				const args = task.argMap?.(results) ?? initArgs;
 
-					const raw = await task.fn(args);
+				// Just call the function - it either returns data or throws
+				const raw = await task.fn(args);
 
-					if (raw?.ok === false) {
-						status[key] = "failed";
-						if (task.abort !== false) throw raw;
-						continue;
-					}
-
-					status[key] = "success";
-					results[key] = raw?.ok ? raw.data : raw;
-				} catch (err) {
-					status[key] = "failed";
-					if (task.abort !== false) throw err;
-				}
+				// No ok check - if we get here, it succeeded
+				status[key] = "success";
+				results[key] = raw; // Store the raw return value
+			} catch (err) {
+				status[key] = "failed";
+				if (task.abort !== false) throw err;
+				// If abort is false, continue to next task
 			}
 		}
+	}
 
-		return {
-			_output: node._output(results, status),
-			_status: status,
-			_results: results,
-		};
-	},
-);
+	return {
+		_output: node._output(results, status),
+		_status: status,
+		_results: results,
+	};
+};

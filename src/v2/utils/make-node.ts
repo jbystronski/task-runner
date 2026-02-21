@@ -1,21 +1,16 @@
 import { defineNode } from "../main.js";
 import { TasksFromFns } from "../types/index.js";
-import { useNode } from "./use-node.js";
-
-type UnwrapResponse<T> = T extends { data: infer D } ? D : T;
 
 export function makeNode<
-	FN extends (args: any) => Promise<any>,
-	Out = UnwrapResponse<Awaited<ReturnType<FN>>>,
+	FN extends (args: any) => any, // Allow sync or async
+	Out = Awaited<ReturnType<FN>>, // Unwrap Promise if present
 >(fn: FN) {
-	return useNode(
-		defineNode<TasksFromFns<{ run: FN }>, Parameters<FN>[0], Out>({
-			run: {
-				fn,
-
-				argMap: (r) => r._init,
-			},
-			_output: (r) => r.run as Out,
-		}),
-	);
+	// Just return the raw node definition, not wrapped with useNode
+	return defineNode<TasksFromFns<{ run: FN }>, Parameters<FN>[0], Out>({
+		run: {
+			fn, // Function can throw or return data
+			argMap: (r) => r._init,
+		},
+		_output: (r) => r.run as Out,
+	});
 }

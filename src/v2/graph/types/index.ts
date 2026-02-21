@@ -1,5 +1,3 @@
-import { TResponse } from "@pogodisco/response";
-
 // graph-logger.ts
 
 export type GraphOptions = {
@@ -20,7 +18,7 @@ export type GraphLogger = (
 	node: string,
 	meta?: any,
 ) => void;
-export type WrappedSchema<I, O> = (args: I) => Promise<TResponse<O>>;
+export type WrappedSchema<I, O> = (args: I) => Promise<O>;
 
 export type ExtractInput<T> = T extends WrappedSchema<infer I, any> ? I : never;
 export type ExtractOutput<T> = T extends WrappedSchema<any, infer O>
@@ -73,12 +71,6 @@ export type GraphEvent =
 // 	| { type: "node_fail"; node: string }
 // 	| { type: "node_background"; node: string }
 // 	| { type: "node_skip"; node: string };
-
-type UnwrapNestedGraph<T> = T extends RuntimeCtx<any, any>
-	? T["results"] // If it's a RuntimeCtx, extract its results
-	: T extends { results: infer R }
-		? R // If it has a results property, use that
-		: T; // Otherwise return as-is
 
 export type NodeOutput<T> = T extends WrappedSchema<any, infer O>
 	? O extends RuntimeCtx<infer N, any>

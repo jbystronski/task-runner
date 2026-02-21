@@ -43,7 +43,7 @@ export type TaskState = "pending" | "skipped" | "failed" | "success";
 export type TaskDefinition<
 	F extends (...args: any) => any,
 	T extends TaskMap,
-	I extends Record<string, any>,
+	I extends Record<string, any> | undefined,
 > = {
 	fn: F;
 	dependencies?: (keyof T)[];
@@ -54,15 +54,13 @@ export type TaskDefinition<
 export type TaskMap = Record<string, TaskDefinition<any, any, any>>;
 
 // --- task results types ---
-type SuccessData<T> = T extends { ok: true; data: infer D } ? D : never;
 
-type TDResultData<TD extends TaskDefinition<any, any, any>> =
-	TD extends TaskDefinition<infer F, any, any>
-		? SuccessData<Awaited<ReturnType<F>>>
-		: never;
+// export type TaskResultsData<T extends TaskMap, I> = { _init: I } & {
+// 	[K in keyof T]: TDResultData<T[K]>;
+// };
 
 export type TaskResultsData<T extends TaskMap, I> = { _init: I } & {
-	[K in keyof T]: TDResultData<T[K]>;
+	[K in keyof T]: Awaited<ReturnType<T[K]["fn"]>>; // Just use the return type directly
 };
 
 // --- helper to create task definitions from functions ---
@@ -73,7 +71,7 @@ export type TasksFromFns<T extends Record<string, (...args: any) => any>> = {
 // --- typed schema ---
 export type TaskNodeWithContracts<
 	T extends TaskMap,
-	I extends Record<string, any>,
+	I extends Record<string, any> | undefined,
 	O,
 > = {
 	[K in keyof T]: T[K] extends TaskDefinition<infer F, any, any>

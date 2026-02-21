@@ -1,5 +1,3 @@
-import type { TResponse } from "@pogodisco/response";
-
 // -----------------------------
 // Input/Output helpers
 // -----------------------------
@@ -11,7 +9,7 @@ export type CommandInputFor<
 export type CommandOutputFor<
 	R extends Record<string, any>,
 	K extends keyof R,
-> = R[K] extends (args: any) => Promise<TResponse<infer O>> ? O : never;
+> = R[K] extends (args: any) => Promise<infer O> ? O : never;
 
 // -----------------------------
 // Registrar creator
@@ -29,7 +27,7 @@ export type CommandOutputFor<
 // }
 
 export function createCommandRegistrar<
-	R extends Record<string, (...args: any) => Promise<TResponse<any>>>,
+	R extends Record<string, (...args: any) => Promise<any>>,
 >(registry: R): CommandRegistrar<R> {
 	return async (name, params) => {
 		const fn = registry[name];
@@ -41,8 +39,8 @@ export function createCommandRegistrar<
 // Public registrar type
 // -----------------------------
 export type CommandRegistrar<
-	R extends Record<string, (...args: any) => Promise<TResponse<any>>>,
+	R extends Record<string, (...args: any) => Promise<any>>,
 > = <K extends keyof R & string>(
 	name: K,
 	params: CommandInputFor<R, K>,
-) => Promise<TResponse<CommandOutputFor<R, K>>>;
+) => Promise<CommandOutputFor<R, K>>;

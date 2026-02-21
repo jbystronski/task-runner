@@ -1,4 +1,3 @@
-import { withResponse } from "@pogodisco/response";
 import {
 	GraphBuilder,
 	GraphEdge,
@@ -18,236 +17,260 @@ export function edge<K extends keyof any>(
 	return { from, to, when };
 }
 
-export const runGraph = withResponse(
-	async <Nodes extends Record<string, GraphNode<any>>, Init>(
-		graph: SchemaGraph<Nodes, Init>,
-		initArgs: Init,
-		opts?: GraphOptions,
-	) => {
-		const concurrency = opts?.concurrency ?? 4;
-		const logger = opts?.log;
+export const runGraph = async <
+	Nodes extends Record<string, GraphNode<any>>,
+	Init,
+>(
+	graph: SchemaGraph<Nodes, Init>,
+	initArgs: Init,
+	opts?: GraphOptions,
+) => {
+	const concurrency = opts?.concurrency ?? 4;
+	const logger = opts?.log;
 
-		const ctx: RuntimeCtx<Nodes, Init> = {
-			_init: initArgs,
-			results: {} as RuntimeCtx<Nodes, Init>["results"],
-			metrics: {},
-			trace: [],
-			pending: {},
-		};
+	const ctx: RuntimeCtx<Nodes, Init> = {
+		_init: initArgs,
+		results: {} as RuntimeCtx<Nodes, Init>["results"],
+		metrics: {},
+		trace: [],
+		pending: {},
+	};
 
-		const nodeKeys = Object.keys(graph.nodes) as (keyof Nodes)[];
+	const nodeKeys = Object.keys(graph.nodes) as (keyof Nodes)[];
 
-		// ---------- GRAPH INDEX ----------
-		const incoming = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
-		const outgoing = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
+	// ---------- GRAPH INDEX ----------
+	const incoming = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
+	const outgoing = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
 
-		for (const k of nodeKeys) {
-			incoming.set(k, []);
-			outgoing.set(k, []);
+	for (const k of nodeKeys) {
+		incoming.set(k, []);
+		outgoing.set(k, []);
+	}
+
+	for (const e of graph.edges) {
+		incoming.get(e.to as keyof Nodes)!.push(e as any);
+		outgoing.get(e.from as keyof Nodes)!.push(e as any);
+	}
+
+	// ---------- REACHABILITY ----------
+	const reachable = new Set<keyof Nodes>();
+
+	const dfs = (node: keyof Nodes) => {
+		if (reachable.has(node)) return;
+		reachable.add(node);
+
+		const outs = outgoing.get(node);
+		if (!outs) return;
+
+		for (const edge of outs) {
+			dfs(edge.to as keyof Nodes);
 		}
+	};
 
-		for (const e of graph.edges) {
-			incoming.get(e.to as keyof Nodes)!.push(e as any);
-			outgoing.get(e.from as keyof Nodes)!.push(e as any);
-		}
+	dfs(graph.entry as keyof Nodes);
 
-		// ---------- REACHABILITY ----------
-		const reachable = new Set<keyof Nodes>();
+	// ---------- DEP COUNTERS ----------
+	const remainingDeps = new Map<keyof Nodes, number>();
 
-		const dfs = (node: keyof Nodes) => {
-			if (reachable.has(node)) return;
-			reachable.add(node);
+	for (const k of nodeKeys) {
+		if (!reachable.has(k)) continue;
 
-			const outs = outgoing.get(node);
-			if (!outs) return;
+		const deps = incoming
+			.get(k)!
+			.filter((e) => reachable.has(e.from as keyof Nodes)).length;
 
-			for (const edge of outs) {
-				dfs(edge.to as keyof Nodes);
+		remainingDeps.set(k, deps);
+	}
+
+	// ---------- READY QUEUE ----------
+	const readyQueue: (keyof Nodes)[] = [];
+
+	for (const k of nodeKeys) {
+		if (!reachable.has(k)) continue;
+		if (remainingDeps.get(k) === 0) readyQueue.push(k);
+	}
+
+	// ---------- EXECUTION ----------
+	async function executeNode(key: keyof Nodes) {
+		const node = graph.nodes[key];
+		const runtime = node.runtime ?? {};
+
+		const metric: NodeMetric = (ctx.metrics[key as string] = {
+			start: Date.now(),
+			status: "success",
+			attempts: 0,
+		});
+
+		if (runtime.when) {
+			const ok = await runtime.when(ctx);
+			if (!ok) {
+				metric.status = "skipped";
+				ctx.trace.push({
+					type: "node_skip",
+					node: String(key),
+					timestamp: Date.now(),
+				});
+
+				logger?.("node_skip", String(key), {
+					reason: "runtime.when === false",
+				});
+
+				return;
 			}
-		};
-
-		dfs(graph.entry as keyof Nodes);
-
-		// ---------- DEP COUNTERS ----------
-		const remainingDeps = new Map<keyof Nodes, number>();
-
-		for (const k of nodeKeys) {
-			if (!reachable.has(k)) continue;
-
-			const deps = incoming
-				.get(k)!
-				.filter((e) => reachable.has(e.from as keyof Nodes)).length;
-
-			remainingDeps.set(k, deps);
 		}
 
-		// ---------- READY QUEUE ----------
-		const readyQueue: (keyof Nodes)[] = [];
+		const baseInput = node.mapInput ? node.mapInput(ctx) : ctx._init;
+		logger?.("node_start", String(key), {
+			input: baseInput,
+			attempt: metric.attempts + 1,
+		});
 
-		for (const k of nodeKeys) {
-			if (!reachable.has(k)) continue;
-			if (remainingDeps.get(k) === 0) readyQueue.push(k);
-		}
+		ctx.trace.push({
+			type: "node_start",
+			node: String(key),
+			input: baseInput,
+			timestamp: Date.now(),
+		});
 
-		// ---------- EXECUTION ----------
-		async function executeNode(key: keyof Nodes) {
-			const node = graph.nodes[key];
-			const runtime = node.runtime ?? {};
+		const retryCount = runtime.retry ?? 0;
 
-			const metric: NodeMetric = (ctx.metrics[key as string] = {
-				start: Date.now(),
-				status: "success",
-				attempts: 0,
-			});
+		for (let attempt = 0; attempt <= retryCount; attempt++) {
+			metric.attempts++;
 
-			if (runtime.when) {
-				const ok = await runtime.when(ctx);
-				if (!ok) {
-					metric.status = "skipped";
-					ctx.trace.push({
-						type: "node_skip",
-						node: String(key),
-						timestamp: Date.now(),
-					});
+			try {
+				// Check if this schema is from useGraph (expects ctx)
+				const isSubgraph =
+					node.schema.toString().includes("ctx") || node.schema.length === 1;
 
-					logger?.("node_skip", String(key), {
-						reason: "runtime.when === false",
-					});
+				let finalInput = baseInput;
 
-					return;
+				// For subgraphs, ensure ctx is present
+				if (isSubgraph) {
+					if (baseInput === undefined || baseInput === null) {
+						// Case 1: No input at all - create object with just ctx
+						finalInput = { ctx } as any;
+					} else if (typeof baseInput !== "object") {
+						// Case 2: Primitive input - wrap with ctx
+						finalInput = {
+							value: baseInput, // Preserve primitive value
+							ctx,
+						} as any;
+					} else if (!("ctx" in baseInput)) {
+						// Case 3: Object input without ctx - add it
+						finalInput = {
+							...baseInput,
+							ctx,
+						};
+					}
+					// Case 4: Object already has ctx - leave as is
 				}
-			}
 
-			const input = node.mapInput ? node.mapInput(ctx) : ctx._init;
+				// execute node or subgraph
 
-			logger?.("node_start", String(key), {
-				input,
-				attempt: metric.attempts + 1,
-			});
+				const execPromise = node.schema(finalInput);
 
-			ctx.trace.push({
-				type: "node_start",
-				node: String(key),
-				input,
-				timestamp: Date.now(),
-			});
+				const res = runtime.timeoutMs
+					? await Promise.race([
+							execPromise,
+							new Promise((_, rej) =>
+								setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
+							),
+						])
+					: await execPromise;
 
-			const retryCount = runtime.retry ?? 0;
+				ctx.results[key] = res;
 
-			for (let attempt = 0; attempt <= retryCount; attempt++) {
-				metric.attempts++;
+				metric.end = Date.now();
+				metric.duration = metric.end - metric.start;
+				metric.status = "success";
 
-				try {
-					const execPromise = node.schema(input);
+				ctx.trace.push({
+					type: "node_success",
+					node: String(key),
+					output: res,
+					timestamp: Date.now(),
+					duration: metric.duration,
+				});
 
-					const res = runtime.timeoutMs
-						? await Promise.race([
-								execPromise,
-								new Promise((_, rej) =>
-									setTimeout(
-										() => rej(new Error("Timeout")),
-										runtime.timeoutMs,
-									),
-								),
-							])
-						: await execPromise;
+				logger?.("node_success", String(key), {
+					output: res,
+					duration: metric.duration,
+					attempts: metric.attempts,
+				});
 
-					if (!res.ok) throw res;
+				// ---------- UNLOCK ----------
+				for (const edge of outgoing.get(key)!) {
+					const next = edge.to as keyof Nodes;
 
-					ctx.results[key] = res.data;
+					if (!reachable.has(next)) continue;
+					if (edge.when && !edge.when(ctx)) continue;
 
-					metric.end = Date.now();
-					metric.duration = metric.end - metric.start;
-					metric.status = "success";
+					remainingDeps.set(next, remainingDeps.get(next)! - 1);
+
+					if (remainingDeps.get(next) === 0) {
+						readyQueue.push(next);
+					}
+				}
+
+				return;
+			} catch (err) {
+				if (attempt >= retryCount) {
+					metric.status = "fail";
 
 					ctx.trace.push({
-						type: "node_success",
+						error: err,
+						type: "node_fail",
 						node: String(key),
-						output: res.data,
 						timestamp: Date.now(),
-						duration: metric.duration,
 					});
 
-					logger?.("node_success", String(key), {
-						output: res.data,
-						duration: metric.duration,
+					logger?.("node_fail", String(key), {
+						error: err,
 						attempts: metric.attempts,
 					});
 
-					// ---------- UNLOCK ----------
-					for (const edge of outgoing.get(key)!) {
-						const next = edge.to as keyof Nodes;
-
-						if (!reachable.has(next)) continue;
-						if (edge.when && !edge.when(ctx)) continue;
-
-						remainingDeps.set(next, remainingDeps.get(next)! - 1);
-
-						if (remainingDeps.get(next) === 0) {
-							readyQueue.push(next);
-						}
-					}
-
-					return;
-				} catch (err) {
-					if (attempt >= retryCount) {
-						metric.status = "fail";
-
-						ctx.trace.push({
-							error: err,
-							type: "node_fail",
-							node: String(key),
-							timestamp: Date.now(),
-						});
-
-						logger?.("node_fail", String(key), {
-							error: err,
-							attempts: metric.attempts,
-						});
-
-						throw err;
-					}
-
-					await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
+					throw err;
 				}
+
+				await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
 			}
 		}
+	}
 
-		// ---------- WORKER POOL ----------
-		async function worker() {
-			while (true) {
-				const next = readyQueue.shift();
-				if (!next) return;
+	// ---------- WORKER POOL ----------
+	async function worker() {
+		while (true) {
+			const next = readyQueue.shift();
+			if (!next) return;
 
-				const node = graph.nodes[next];
-				const runtime = node.runtime ?? {};
+			const node = graph.nodes[next];
+			const runtime = node.runtime ?? {};
 
-				if (runtime.background) {
-					ctx.trace.push({
-						type: "node_background",
-						node: String(next),
-						timestamp: Date.now(),
-					});
+			if (runtime.background) {
+				ctx.trace.push({
+					type: "node_background",
+					node: String(next),
+					timestamp: Date.now(),
+				});
 
-					logger?.("node_background", String(next));
+				logger?.("node_background", String(next));
 
-					ctx.pending[next as string] = executeNode(next);
-				} else {
-					await executeNode(next);
-				}
+				ctx.pending[next as string] = executeNode(next);
+			} else {
+				await executeNode(next);
 			}
 		}
+	}
 
-		await Promise.all(Array.from({ length: concurrency }, () => worker()));
-		await Promise.all(Object.values(ctx.pending));
+	await Promise.all(Array.from({ length: concurrency }, () => worker()));
+	await Promise.all(Object.values(ctx.pending));
 
-		logger?.("graph_finish", "_graph", {
-			metrics: ctx.metrics,
-			input: ctx._init,
-			output: ctx.results,
-			traceLength: ctx.trace.length,
-		});
+	logger?.("graph_finish", "_graph", {
+		metrics: ctx.metrics,
+		input: ctx._init,
+		output: ctx.results,
+		traceLength: ctx.trace.length,
+	});
 
-		return new GraphResult(ctx);
-	},
-);
+	return new GraphResult(ctx);
+};
