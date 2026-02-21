@@ -2,7 +2,7 @@ import { defineNode } from "../main.js";
 import { TasksFromFns } from "../types/index.js";
 import { useNode } from "./use-node.js";
 
-export function makeNode<
+export function createNode<
 	FN extends (args: any) => any, // Allow sync or async
 	Out = Awaited<ReturnType<FN>>, // Unwrap Promise if present
 >(fn: FN) {
@@ -16,13 +16,13 @@ export function makeNode<
 	});
 }
 
-export function createGenericNode<FN extends (args: any) => any>(fn: FN) {
-	return <T = Awaited<ReturnType<FN>>>() => useNode(makeNode<FN, T>(fn));
+export function genericNode<FN extends (args: any) => any>(fn: FN) {
+	return <T = Awaited<ReturnType<FN>>>() => useNode(createNode<FN, T>(fn));
 }
 
-export function createFixedNode<
+export function fixedNode<
 	FN extends (args: any) => any,
 	T = Awaited<ReturnType<FN>>,
 >(fn: FN): () => (args: Parameters<FN>[0]) => Promise<T> {
-	return () => useNode(makeNode<FN, T>(fn));
+	return () => useNode(createNode<FN, T>(fn));
 }

@@ -1,5 +1,10 @@
 export { execNode, defineNode } from "./main.js";
-export { useNode, makeNode } from "./utils/index.js";
+export {
+	useNode,
+	createNode,
+	fixedNode,
+	genericNode,
+} from "./utils/index.js";
 export * from "./graph/index.js";
 
 export * from "./types/index.js";
