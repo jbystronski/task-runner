@@ -118,6 +118,17 @@ export type SchemaGraph<
 	edges: GraphEdge<keyof Nodes, Nodes, Init, State>[]; // Now carries State
 };
 
+type ProvideMap<
+	Nodes extends Record<string, GraphNode<any>>,
+	CurrentKey extends keyof Nodes,
+	CurrentState,
+> = {
+	[K in keyof CurrentState]?: (
+		result: ExtractOutput<Nodes[CurrentKey]["schema"]>,
+		state: CurrentState,
+	) => CurrentState[K];
+};
+
 // NodeRuntimeConfig with proper generics
 export type NodeRuntimeConfig<
 	Nodes extends Record<string, GraphNode<any>> = any,
@@ -134,12 +145,7 @@ export type NodeRuntimeConfig<
 	transform?: (
 		state: CurrentState,
 	) => ExtractInput<Nodes[CurrentKey]["schema"]>;
-	provide?: {
-		[K: string]: (
-			result: ExtractOutput<Nodes[CurrentKey]["schema"]>,
-			state: CurrentState,
-		) => any;
-	};
+	provide?: ProvideMap<Nodes, CurrentKey, CurrentState>;
 };
 
 type GetProvidesFromConfig<Config> = Config extends { provide: infer P }
