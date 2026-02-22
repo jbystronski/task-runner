@@ -6,7 +6,6 @@ import {
 	NodeMetric,
 	RuntimeCtx,
 	SchemaGraph,
-	State,
 } from "./types/index.js";
 import { GraphResult } from "./utils/projection.js";
 
@@ -183,9 +182,12 @@ export const runGraph = async <
 				ctx.results[key] = res;
 
 				// 🔥 NEW: Provide data to shared state
+
 				if (runtime.provide) {
+					// Cast ctx.state to Record<string, any> for dynamic property assignment
+					const state = ctx.state as Record<string, any>;
 					for (const [key, mapper] of Object.entries(runtime.provide)) {
-						ctx.state[key] = mapper(res, ctx.state);
+						state[key] = mapper(res, ctx.state);
 					}
 				}
 
