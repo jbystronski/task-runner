@@ -1,5 +1,4 @@
 import {
-	GraphBuilder,
 	GraphEdge,
 	GraphNode,
 	GraphOptions,
@@ -205,7 +204,7 @@ export const runGraph = async <
 					// Cast ctx.state to Record<string, any> for dynamic property assignment
 					const state = ctx.state as Record<string, any>;
 					for (const [key, mapper] of Object.entries(runtime.provide)) {
-						state[key] = mapper(res, ctx.state);
+						state[key] = mapper?.(res, ctx.state);
 					}
 				}
 
