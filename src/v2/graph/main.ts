@@ -6,6 +6,7 @@ import {
 	NodeMetric,
 	RuntimeCtx,
 	SchemaGraph,
+	State,
 } from "./types/index.js";
 import { GraphResult } from "./utils/projection.js";
 
@@ -32,6 +33,7 @@ export const runGraph = async <
 		_init: initArgs,
 		results: {} as RuntimeCtx<Nodes, Init>["results"],
 		metrics: {},
+		state: { ...initArgs } as Record<string, any>,
 		trace: [],
 		pending: {},
 	};
@@ -119,16 +121,22 @@ export const runGraph = async <
 			}
 		}
 
-		const baseInput = node.mapInput ? node.mapInput(ctx) : ctx._init;
+		const input = runtime.transform ? runtime.transform(ctx.state) : ctx.state; // If no transform, pass entire state
+
 		logger?.("node_start", String(key), {
-			input: baseInput,
+			input,
+			attempt: metric.attempts + 1,
+		});
+
+		logger?.("node_start", String(key), {
+			input,
 			attempt: metric.attempts + 1,
 		});
 
 		ctx.trace.push({
 			type: "node_start",
 			node: String(key),
-			input: baseInput,
+			input,
 			timestamp: Date.now(),
 		});
 
@@ -142,33 +150,26 @@ export const runGraph = async <
 				const isSubgraph =
 					node.schema.toString().includes("ctx") || node.schema.length === 1;
 
-				let finalInput = baseInput;
+				let finalInput = input;
 
 				// For subgraphs, ensure ctx is present
 				if (isSubgraph) {
-					if (baseInput === undefined || baseInput === null) {
-						// Case 1: No input at all - create object with just ctx
+					if (input === undefined || input === null) {
 						finalInput = { ctx } as any;
-					} else if (typeof baseInput !== "object") {
-						// Case 2: Primitive input - wrap with ctx
+					} else if (typeof input !== "object") {
 						finalInput = {
-							value: baseInput, // Preserve primitive value
+							value: input,
 							ctx,
 						} as any;
-					} else if (!("ctx" in baseInput)) {
-						// Case 3: Object input without ctx - add it
+					} else if (input && typeof input === "object" && !("ctx" in input)) {
 						finalInput = {
-							...baseInput,
+							...input,
 							ctx,
 						};
 					}
-					// Case 4: Object already has ctx - leave as is
 				}
 
-				// execute node or subgraph
-
 				const execPromise = node.schema(finalInput);
-
 				const res = runtime.timeoutMs
 					? await Promise.race([
 							execPromise,
@@ -178,7 +179,28 @@ export const runGraph = async <
 						])
 					: await execPromise;
 
+				// Store result
 				ctx.results[key] = res;
+
+				// 🔥 NEW: Provide data to shared state
+				if (runtime.provide) {
+					for (const [key, mapper] of Object.entries(runtime.provide)) {
+						ctx.state[key] = mapper(res, ctx.state);
+					}
+				}
+
+				// 🔥 NEW: Provide data to shared state
+
+				// 🔥 NEW: Provide data to downstream nodes via state
+				// if (runtime.provide) {
+				// 	// Type assertion that we're working with the right shape
+				// 	const provide = runtime.provide as {
+				// 		[K in keyof Nodes]?: (result: any, state: State) => any;
+				// 	};
+				// 	for (const [key, mapper] of Object.entries(provide)) {
+				// 		ctx.state[key] = mapper?.(res, ctx.state);
+				// 	}
+				// }
 
 				metric.end = Date.now();
 				metric.duration = metric.end - metric.start;

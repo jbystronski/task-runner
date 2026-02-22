@@ -1,7 +1,11 @@
 import { GraphBuilder, GraphNode, GraphEdge } from "./types/index.js";
 import { GraphValidator } from "./validation/main.js";
 
-export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
+export function createGraph<Init = {}, State = {}>(): GraphBuilder<
+	{},
+	Init,
+	State
+> {
 	const nodes: Record<string, GraphNode<any>> = {};
 	// const edges: GraphEdge<string>[] = [];
 	const edges: GraphEdge<keyof any>[] = [];
@@ -9,9 +13,9 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 	const validator = new GraphValidator();
 
 	const builder: GraphBuilder<any, Init> = {
-		node(key, schema, mapInput, runtime) {
+		node(key, schema, runtime) {
 			if (!entry) entry = key;
-			nodes[key] = { schema, mapInput, runtime };
+			nodes[key] = { schema, runtime };
 			return builder as any;
 		},
 
@@ -50,6 +54,5 @@ export function createGraph<Init = {}>(): GraphBuilder<{}, Init> {
 			return graph;
 		},
 	};
-
-	return builder;
+	return builder as GraphBuilder<{}, Init, State>;
 }

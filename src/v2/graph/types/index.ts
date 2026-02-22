@@ -1,5 +1,3 @@
-// graph-logger.ts
-
 export type GraphOptions = {
 	concurrency?: number;
 	log?: GraphLogger;
@@ -18,6 +16,7 @@ export type GraphLogger = (
 	node: string,
 	meta?: any,
 ) => void;
+
 export type WrappedSchema<I, O> = (args: I) => Promise<O>;
 
 export type ExtractInput<T> = T extends WrappedSchema<infer I, any> ? I : never;
@@ -27,8 +26,7 @@ export type ExtractOutput<T> = T extends WrappedSchema<any, infer O>
 
 export type GraphNode<FN extends WrappedSchema<any, any>> = {
 	schema: FN;
-	mapInput?: (ctx: any) => ExtractInput<FN>;
-	runtime?: NodeRuntimeConfig;
+	runtime?: NodeRuntimeConfig; // No type args needed here
 };
 
 export type NodeMetric = {
@@ -64,44 +62,38 @@ export type GraphEvent =
 			timestamp: number;
 			node?: undefined;
 	  };
-// export type GraphTraceEvent = Pick<GraphEvent, "type" | "node">;
-// export type GraphTraceEvent =
-// 	| { type: "node_start"; node: string }
-// 	| { type: "node_success"; node: string }
-// 	| { type: "node_fail"; node: string }
-// 	| { type: "node_background"; node: string }
-// 	| { type: "node_skip"; node: string };
 
 export type NodeOutput<T> = T extends WrappedSchema<any, infer O>
-	? O extends RuntimeCtx<infer N, any>
-		? GraphResults<N> // Recursively extract nested graph results
+	? O extends RuntimeCtx<infer N, any, any>
+		? GraphResults<N>
 		: O extends { results: infer R }
-			? R // Extract results property if present
-			: O // Otherwise return output directly
+			? R
+			: O
 	: never;
 
-// Updated GraphResults that recursively unwraps nested graphs
 export type GraphResults<N extends Record<string, GraphNode<any>>> = {
 	[K in keyof N]: NodeOutput<N[K]["schema"]>;
 };
 
-// Helper to get nodes type from a graph
 export type InferGraphNodes<G> = G extends SchemaGraph<infer N, any>
 	? N
 	: never;
 
-// Helper to get results type from a graph
 export type InferGraphResults<G> = G extends SchemaGraph<infer N, any>
 	? GraphResults<N>
 	: never;
-export type RuntimeCtx<Nodes extends Record<string, GraphNode<any>>, Init> = {
+
+// RuntimeCtx with State generic
+export type RuntimeCtx<
+	Nodes extends Record<string, GraphNode<any>>,
+	Init,
+	State = {}, // State defaults to empty object
+> = {
 	_init: Init;
-
-	results: GraphResults<Nodes>; //
-
+	results: GraphResults<Nodes>;
 	metrics: Record<string, NodeMetric>;
 	trace: GraphEvent[];
-
+	state: State; // Use the State type
 	pending: Record<string, Promise<any>>;
 };
 
@@ -111,45 +103,125 @@ export type GraphEdge<NodeKeys extends keyof any> = {
 	when?: (ctx: any) => boolean;
 };
 
-export type BuiltNode<
-	FN extends WrappedSchema<any, any>,
-	Nodes extends Record<string, GraphNode<any>>,
-> = GraphNode<FN>;
-
 export type SchemaGraph<Nodes extends Record<string, GraphNode<any>>, Init> = {
 	entry: keyof Nodes;
 	nodes: Nodes;
 	edges: GraphEdge<keyof Nodes>[];
 };
 
+// NodeRuntimeConfig with proper generics
+export type NodeRuntimeConfig<
+	Nodes extends Record<string, GraphNode<any>> = any,
+	CurrentKey extends keyof Nodes = any,
+	CurrentState = any,
+> = {
+	background?: boolean;
+	retry?: number;
+	timeoutMs?: number;
+	when?: (
+		ctx: RuntimeCtx<Nodes, any, CurrentState>,
+	) => boolean | Promise<boolean>;
+	pool?: string;
+	transform?: (
+		state: CurrentState,
+	) => ExtractInput<Nodes[CurrentKey]["schema"]>;
+	provide?: {
+		[K: string]: (
+			result: ExtractOutput<Nodes[CurrentKey]["schema"]>,
+			state: CurrentState,
+		) => any;
+	};
+};
+
+type GetProvidesFromConfig<Config> = Config extends { provide: infer P }
+	? P extends Record<string, (...args: any) => any>
+		? { [K in keyof P]: ReturnType<P[K]> }
+		: {}
+	: {};
+
+// GraphBuilder with proper state accumulation
+// export type GraphBuilder<
+// 	Nodes extends Record<string, GraphNode<any>> = {},
+// 	Init = {},
+// 	CurrentState = {},
+// > = {
+// 	node<K extends string, FN extends WrappedSchema<any, any>, Config>(
+// 		key: K,
+// 		schema: FN,
+// 		runtime?: Config &
+// 			NodeRuntimeConfig<Nodes & Record<K, GraphNode<FN>>, K, CurrentState>,
+// 	): GraphBuilder<
+// 		Nodes & Record<K, GraphNode<FN>>,
+// 		Init,
+// 		CurrentState & GetProvidesFromConfig<Config>
+// 	>;
+//
+// 	edge<From extends keyof Nodes, To extends keyof Nodes>(
+// 		from: From,
+// 		to: To,
+// 		when?: (ctx: any) => boolean,
+// 	): GraphBuilder<Nodes, Init, CurrentState>;
+//
+// 	build(): SchemaGraph<Nodes, Init>;
+// };
+// GraphBuilder with proper state accumulation
+// export type GraphBuilder<
+// 	Nodes extends Record<string, GraphNode<any>> = {},
+// 	Init = {},
+// 	AllProvides = {}, // Accumulates ALL provide types from all nodes
+// > = {
+// 	node<K extends string, FN extends WrappedSchema<any, any>, Config>(
+// 		key: K,
+// 		schema: FN,
+// 		// Pass the FINAL AllProvides type (not the current one)
+// 		runtime?: Config &
+// 			NodeRuntimeConfig<Nodes & Record<K, GraphNode<FN>>, K, AllProvides>,
+// 	): GraphBuilder<
+// 		Nodes & Record<K, GraphNode<FN>>,
+// 		Init,
+// 		// Add this node's provides to AllProvides for NEXT nodes
+// 		AllProvides & GetProvidesFromConfig<Config>
+// 	>;
+//
+// 	edge<From extends keyof Nodes, To extends keyof Nodes>(
+// 		from: From,
+// 		to: To,
+// 		when?: (ctx: any) => boolean,
+// 	): GraphBuilder<Nodes, Init, AllProvides>;
+//
+// 	build(): SchemaGraph<Nodes, Init>;
+// };
+
 export type GraphBuilder<
 	Nodes extends Record<string, GraphNode<any>> = {},
 	Init = {},
+	State = {}, // Add State generic here
 > = {
-	node<K extends string, FN extends WrappedSchema<any, any>>(
+	node<K extends string, FN extends WrappedSchema<any, any>, Config>(
 		key: K,
 		schema: FN,
-		mapInput?: (
-			ctx: RuntimeCtx<Nodes & Record<K, GraphNode<FN>>, Init>,
-		) => ExtractInput<FN>,
-		runtime?: NodeRuntimeConfig,
-	): GraphBuilder<Nodes & Record<K, GraphNode<FN>>, Init>;
+		// Pass State to NodeRuntimeConfig
+		runtime?: Config &
+			NodeRuntimeConfig<Nodes & Record<K, GraphNode<FN>>, K, State>,
+	): GraphBuilder<
+		Nodes & Record<K, GraphNode<FN>>,
+		Init,
+		State & GetProvidesFromConfig<Config> // Accumulate provides into State
+	>;
 
 	edge<From extends keyof Nodes, To extends keyof Nodes>(
 		from: From,
 		to: To,
 		when?: (ctx: any) => boolean,
-	): GraphBuilder<Nodes, Init>;
+	): GraphBuilder<Nodes, Init, State>;
 
 	build(): SchemaGraph<Nodes, Init>;
 };
 
 export type GraphEntryInput<G extends SchemaGraph<any, any>> =
 	G extends SchemaGraph<infer Nodes, any>
-		? RuntimeCtx<Nodes, any>["_init"]
+		? RuntimeCtx<Nodes, any, any>["_init"]
 		: never;
-
-// await runSchemaGraph(testGraph, { _id: "bar" });
 
 export type GraphNodes<G> = G extends SchemaGraph<infer Nodes, any>
 	? Nodes
@@ -157,23 +229,7 @@ export type GraphNodes<G> = G extends SchemaGraph<infer Nodes, any>
 
 export type InferGraphInit<G> = G extends SchemaGraph<any, infer I> ? I : never;
 
-export type GraphInput<K extends keyof GraphRegistry> =
-	GraphRegistry[K] extends SchemaGraph<any, infer Init> ? Init : never;
-
-export type GraphOutput<K extends keyof GraphRegistry> =
-	GraphRegistry[K] extends SchemaGraph<infer Nodes, infer Init>
-		? RuntimeCtx<Nodes, Init>
-		: never;
-
 export interface GraphRegistry {}
-
-export type NodeRuntimeConfig = {
-	background?: boolean;
-	retry?: number;
-	timeoutMs?: number;
-	when?: (ctx: RuntimeCtx<any, any>) => boolean | Promise<boolean>;
-	pool?: string;
-};
 
 export type GraphRunOptions = {
 	concurrency?: number;
