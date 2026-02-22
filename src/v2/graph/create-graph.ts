@@ -8,7 +8,8 @@ export function createGraph<Init = {}, State = {}>(): GraphBuilder<
 > {
 	const nodes: Record<string, GraphNode<any>> = {};
 	// const edges: GraphEdge<string>[] = [];
-	const edges: GraphEdge<keyof any>[] = [];
+
+	const edges: GraphEdge<keyof any, any, Init, State>[] = [];
 	let entry: string | undefined;
 	const validator = new GraphValidator();
 
@@ -19,8 +20,8 @@ export function createGraph<Init = {}, State = {}>(): GraphBuilder<
 			return builder as any;
 		},
 
-		edge(from, to, when?: any) {
-			edges.push({ from, to, when });
+		edge(from, to, when) {
+			edges.push({ from, to, when } as GraphEdge<keyof any, any, Init, State>);
 			return builder;
 		},
 

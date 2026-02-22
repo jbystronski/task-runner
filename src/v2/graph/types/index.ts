@@ -97,16 +97,25 @@ export type RuntimeCtx<
 	pending: Record<string, Promise<any>>;
 };
 
-export type GraphEdge<NodeKeys extends keyof any> = {
+export type GraphEdge<
+	NodeKeys extends keyof any,
+	Nodes extends Record<string, GraphNode<any>>,
+	Init,
+	State,
+> = {
 	from: NodeKeys;
 	to: NodeKeys;
-	when?: (ctx: any) => boolean;
+	when?: (ctx: RuntimeCtx<Nodes, Init, State>) => boolean;
 };
 
-export type SchemaGraph<Nodes extends Record<string, GraphNode<any>>, Init> = {
+export type SchemaGraph<
+	Nodes extends Record<string, GraphNode<any>>,
+	Init,
+	State = {},
+> = {
 	entry: keyof Nodes;
 	nodes: Nodes;
-	edges: GraphEdge<keyof Nodes>[];
+	edges: GraphEdge<keyof Nodes, Nodes, Init, State>[]; // Now carries State
 };
 
 // NodeRuntimeConfig with proper generics
@@ -208,11 +217,10 @@ export type GraphBuilder<
 		Init,
 		State & GetProvidesFromConfig<Config> // Accumulate provides into State
 	>;
-
 	edge<From extends keyof Nodes, To extends keyof Nodes>(
 		from: From,
 		to: To,
-		when?: (ctx: any) => boolean,
+		when?: (ctx: RuntimeCtx<Nodes, Init, State>) => boolean, // Now fully typed!
 	): GraphBuilder<Nodes, Init, State>;
 
 	build(): SchemaGraph<Nodes, Init>;

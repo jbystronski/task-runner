@@ -9,17 +9,23 @@ import {
 } from "./types/index.js";
 import { GraphResult } from "./utils/projection.js";
 
-export function edge<K extends keyof any>(
+export function edge<
+	K extends keyof any,
+	Nodes extends Record<string, GraphNode<any>>, // Add constraint
+	Init,
+	State,
+>(
 	from: K,
 	to: K,
-	when?: (ctx: any) => boolean,
-): GraphEdge<K> {
-	return { from, to, when };
+	when?: (ctx: RuntimeCtx<Nodes, Init, State>) => boolean,
+): GraphEdge<K, Nodes, Init, State> {
+	return { from, to, when } as GraphEdge<K, Nodes, Init, State>;
 }
 
 export const runGraph = async <
 	Nodes extends Record<string, GraphNode<any>>,
 	Init,
+	State = Init & Record<string, any>,
 >(
 	graph: SchemaGraph<Nodes, Init>,
 	initArgs: Init,
@@ -28,11 +34,17 @@ export const runGraph = async <
 	const concurrency = opts?.concurrency ?? 4;
 	const logger = opts?.log;
 
-	const ctx: RuntimeCtx<Nodes, Init> = {
+	// Initialize state with initArgs - this is the foundation
+	const initialState = {
+		...initArgs,
+		// Any other default state can go here
+	} as unknown as State;
+
+	const ctx: RuntimeCtx<Nodes, Init, State> = {
 		_init: initArgs,
 		results: {} as RuntimeCtx<Nodes, Init>["results"],
 		metrics: {},
-		state: { ...initArgs } as Record<string, any>,
+		state: initialState,
 		trace: [],
 		pending: {},
 	};
@@ -40,9 +52,15 @@ export const runGraph = async <
 	const nodeKeys = Object.keys(graph.nodes) as (keyof Nodes)[];
 
 	// ---------- GRAPH INDEX ----------
-	const incoming = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
-	const outgoing = new Map<keyof Nodes, GraphEdge<keyof Nodes>[]>();
 
+	const incoming = new Map<
+		keyof Nodes,
+		GraphEdge<keyof Nodes, Nodes, Init, State>[]
+	>();
+	const outgoing = new Map<
+		keyof Nodes,
+		GraphEdge<keyof Nodes, Nodes, Init, State>[]
+	>();
 	for (const k of nodeKeys) {
 		incoming.set(k, []);
 		outgoing.set(k, []);

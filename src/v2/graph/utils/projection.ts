@@ -6,13 +6,17 @@ import {
 	NodeMetric,
 } from "../types/index.js";
 
-export class GraphResult<Nodes extends Record<string, GraphNode<any>>, Init> {
+export class GraphResult<
+	Nodes extends Record<string, GraphNode<any>>,
+	Init,
+	State,
+> {
 	public results: GraphResults<Nodes>;
 	public metrics: Record<string, NodeMetric>;
 	public trace: GraphEvent[];
 	public init: Init;
 
-	constructor(private ctx: RuntimeCtx<Nodes, Init>) {
+	constructor(private ctx: RuntimeCtx<Nodes, Init, State>) {
 		// Unwrap results for type inference (this is still needed)
 		this.results = this.unwrapResults(ctx.results) as GraphResults<Nodes>;
 
@@ -47,7 +51,7 @@ export class GraphResult<Nodes extends Record<string, GraphNode<any>>, Init> {
 	}
 
 	// Raw access if absolutely needed
-	raw(): RuntimeCtx<Nodes, Init> {
+	raw(): RuntimeCtx<Nodes, Init, State> {
 		return this.ctx;
 	}
 }
