@@ -1,6 +1,5 @@
-import { defineNode } from "../main.js";
-import { TasksFromFns } from "../types/index.js";
-import { useNode } from "./use-node.js";
+import { defineNode, execNode } from "./main.js";
+import { TasksFromFns, TaskMap, TaskNodeWithContracts } from "./types.js";
 
 export function createNode<
 	FN extends (args: any) => any, // Allow sync or async
@@ -25,4 +24,17 @@ export function fixedNode<
 	T = Awaited<ReturnType<FN>>,
 >(fn: FN): () => (args: Parameters<FN>[0]) => Promise<T> {
 	return () => useNode(createNode<FN, T>(fn));
+}
+
+export function useNode<
+	T extends TaskMap,
+	I extends Record<string, any> | undefined,
+	O,
+>(node: TaskNodeWithContracts<T, I, O>) {
+	// Returns a function that graph can call, but WITHOUT withResponse
+	// Just a simple adapter that calls callNode and returns raw _output
+	return async (initArgs: I): Promise<O> => {
+		const result = await execNode(node, initArgs);
+		return result._output; // Just raw data, throws on error
+	};
 }

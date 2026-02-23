@@ -26,7 +26,7 @@ export const runGraph = async <
 	Init,
 	State = Init & Record<string, any>,
 >(
-	graph: SchemaGraph<Nodes, Init>,
+	graph: SchemaGraph<Nodes, Init, State>,
 	initArgs: Init,
 	opts?: GraphOptions,
 ) => {

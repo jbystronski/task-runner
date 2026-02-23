@@ -4,7 +4,7 @@ import {
 	TaskResultsData,
 	TaskState,
 	TaskNodeWithContracts,
-} from "./types/index.js";
+} from "./types.js";
 
 export function defineNode<T extends TaskMap, I extends Record<string, any>, O>(
 	node: {
