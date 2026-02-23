@@ -17,8 +17,8 @@ function buildReverseEdges<
 >(graph: SchemaGraph<Nodes, Init, State>) {
 	const reverse = new Map<NodeKey, GraphEdge<NodeKey, Nodes, Init, State>[]>();
 	for (const e of graph.edges) {
-		if (!reverse.has(e.to as string)) reverse.set(e.to as string, []);
-		reverse.get(e.to as string)!.push(e);
+		if (!reverse.has(e.to as NodeKey)) reverse.set(e.to as NodeKey, []);
+		reverse.get(e.to as NodeKey)!.push(e as any);
 	}
 	return reverse;
 }
@@ -64,7 +64,7 @@ function buildExecutionGraph<
 			Object.entries(graph.nodes).filter(([k]) => required.has(k)),
 		) as any,
 		edges: graph.edges.filter(
-			(e) => required.has(e.from) && required.has(e.to),
+			(e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
 		),
 	} as SchemaGraph<Nodes, Init, State>;
 }
