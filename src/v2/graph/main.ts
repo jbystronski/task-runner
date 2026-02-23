@@ -21,7 +21,7 @@ export function edge<
 	return { from, to, when } as GraphEdge<K, Nodes, Init, State>;
 }
 
-export const runGraph = async <
+export const runGraphInternal = async <
 	Nodes extends Record<string, GraphNode<any>>,
 	Init,
 	State = Init & Record<string, any>,
@@ -137,7 +137,7 @@ export const runGraph = async <
 			}
 		}
 
-		const input = runtime.transform ? runtime.transform(ctx.state) : ctx.state; // If no transform, pass entire state
+		const input = runtime.expect ? runtime.expect(ctx.state) : ctx.state; // If no transform, pass entire state
 
 		logger?.("node_start", String(key), {
 			input,

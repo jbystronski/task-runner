@@ -142,9 +142,7 @@ export type NodeRuntimeConfig<
 		ctx: RuntimeCtx<Nodes, any, CurrentState>,
 	) => boolean | Promise<boolean>;
 	pool?: string;
-	transform?: (
-		state: CurrentState,
-	) => ExtractInput<Nodes[CurrentKey]["schema"]>;
+	expect?: (state: CurrentState) => ExtractInput<Nodes[CurrentKey]["schema"]>;
 	provide?: ProvideMap<Nodes, CurrentKey, CurrentState>;
 };
 
@@ -248,5 +246,6 @@ export interface GraphRegistry {}
 export type GraphRunOptions = {
 	concurrency?: number;
 	log?: GraphLogger;
+
 	pools?: Record<string, number>;
 };

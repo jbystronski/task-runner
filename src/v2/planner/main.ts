@@ -4,8 +4,9 @@ import {
 	GraphNode,
 	RuntimeCtx,
 	GraphOptions,
-	runGraph,
+	InferGraphNodes,
 } from "../graph/index.js";
+import { runGraphInternal } from "../graph/main.js";
 
 type NodeKey = string;
 
@@ -15,10 +16,13 @@ function buildReverseEdges<
 	Init,
 	State,
 >(graph: SchemaGraph<Nodes, Init, State>) {
-	const reverse = new Map<NodeKey, GraphEdge<NodeKey, Nodes, Init, State>[]>();
+	const reverse = new Map<
+		keyof Nodes,
+		GraphEdge<NodeKey, Nodes, Init, State>[]
+	>();
 	for (const e of graph.edges) {
-		if (!reverse.has(e.to as NodeKey)) reverse.set(e.to as NodeKey, []);
-		reverse.get(e.to as NodeKey)!.push(e as any);
+		if (!reverse.has(e.to as keyof Nodes)) reverse.set(e.to as keyof Nodes, []);
+		reverse.get(e.to as keyof Nodes)!.push(e as any);
 	}
 	return reverse;
 }
@@ -30,15 +34,15 @@ function resolveRequiredNodes<
 	State,
 >(
 	graph: SchemaGraph<Nodes, Init, State>,
-	goalNodes: NodeKey[],
+	goalNodes: (keyof Nodes)[],
 	initCtx: RuntimeCtx<Nodes, Init, State>,
 ) {
 	const reverse = buildReverseEdges(graph);
 	const required = new Set<NodeKey>();
 
-	function walk(node: NodeKey) {
-		if (required.has(node)) return;
-		required.add(node);
+	function walk(node: keyof Nodes) {
+		if (required.has(node as string)) return;
+		required.add(node as string);
 
 		const incoming = reverse.get(node) ?? [];
 		for (const edge of incoming) {
@@ -76,7 +80,7 @@ export function planGraph<
 	State,
 >(
 	graph: SchemaGraph<Nodes, Init, State>,
-	goalNodes: NodeKey[],
+	goalNodes: (keyof Nodes)[],
 	initCtx: RuntimeCtx<Nodes, Init, State>,
 ) {
 	const required = resolveRequiredNodes(graph, goalNodes, initCtx);
@@ -90,7 +94,8 @@ export async function executeWithPlanner<
 >(
 	fullGraph: SchemaGraph<Nodes, Init, State>,
 	initArgs: Init,
-	goalNodes: NodeKey[],
+	// goalNodes: NodeKey[],
+	goalNodes: (keyof Nodes)[],
 	opts?: GraphOptions,
 ) {
 	// Create a lightweight ctx for planning
@@ -99,7 +104,7 @@ export async function executeWithPlanner<
 		results: {} as any,
 		metrics: {},
 		trace: [],
-		state: {} as State,
+		state: { ...initArgs } as unknown as State,
 		pending: {},
 	};
 
@@ -107,5 +112,5 @@ export async function executeWithPlanner<
 	const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
 
 	// Phase 2: Execute (scheduler already handles DAG + parallelism)
-	return runGraph(executionGraph, initArgs, opts);
+	return runGraphInternal(executionGraph, initArgs, opts);
 }

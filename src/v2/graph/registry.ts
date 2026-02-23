@@ -1,5 +1,5 @@
 import { GraphRunOptions, RuntimeCtx, SchemaGraph } from "./types/index.js";
-import { runGraph } from "./index.js";
+import { executeWithPlanner } from "../planner/main.js";
 
 // -----------------------------
 // Input / Output helpers
@@ -24,14 +24,22 @@ export type GraphOutputFor<
 // 	params: GraphInputFor<R, K>,
 // ) => Promise<GraphOutputFor<R, K>>;
 
-export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
-	K extends keyof R & string,
->(
+// export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
+// 	K extends keyof R & string,
+// >(
+// 	name: K,
+// 	params: GraphInputFor<R, K>,
+// 	opts?: GraphRunOptions,
+// ) => Promise<GraphOutputFor<R, K>>;
+export type GraphRegistrar<
+	R extends Record<string, SchemaGraph<any, any, any>>,
+> = <K extends keyof R & string, Goal extends keyof R[K]["nodes"]>(
 	name: K,
 	params: GraphInputFor<R, K>,
-	opts?: GraphRunOptions,
+	opts: GraphRunOptions & {
+		goals: Goal[];
+	},
 ) => Promise<GraphOutputFor<R, K>>;
-
 // -----------------------------
 // Factory
 // -----------------------------
@@ -49,6 +57,11 @@ export function createGraphRegistrar<
 >(registry: R): GraphRegistrar<R> {
 	return async (name, params, opts) => {
 		const graph = registry[name];
-		return runGraph(graph, params, opts) as any;
+		if (!opts?.goals?.length) {
+			throw new Error(`No goals provided for graph "${name}"`);
+		}
+
+		return executeWithPlanner(graph, params, opts.goals, opts) as any;
+		// return runGraph(graph, params, opts) as any;
 	};
 }
