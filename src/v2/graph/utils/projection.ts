@@ -15,6 +15,7 @@ export class GraphResult<
 	public metrics: Record<string, NodeMetric>;
 	public trace: GraphEvent[];
 	public init: Init;
+	public state: State;
 
 	constructor(private ctx: RuntimeCtx<Nodes, Init, State>) {
 		// Unwrap results for type inference (this is still needed)
@@ -27,6 +28,8 @@ export class GraphResult<
 		this.trace = ctx.trace;
 
 		this.init = ctx._init;
+
+		this.state = ctx.state;
 	}
 
 	private unwrapResults(results: any): any {
