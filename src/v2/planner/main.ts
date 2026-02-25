@@ -94,7 +94,7 @@ export async function executeWithPlanner<
 >(
 	fullGraph: SchemaGraph<Nodes, Init, State>,
 	initArgs: Init,
-	// goalNodes: NodeKey[],
+
 	goalNodes: (keyof Nodes)[],
 	opts?: GraphOptions,
 ) {
@@ -110,6 +110,19 @@ export async function executeWithPlanner<
 
 	// Phase 1: Plan
 	const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
+	const logger = opts?.log;
+
+	logger?.({
+		type: "graph_planned",
+		entry: String(executionGraph.entry),
+		nodes: Object.keys(executionGraph.nodes),
+		edges: executionGraph.edges.map((e) => ({
+			from: String(e.from),
+			to: String(e.to),
+		})),
+		goals: goalNodes.map(String),
+		timestamp: Date.now(),
+	});
 
 	// Phase 2: Execute (scheduler already handles DAG + parallelism)
 	return runGraphInternal(executionGraph, initArgs, opts);
