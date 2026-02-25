@@ -11,11 +11,7 @@ export type GraphLogEvent =
 	| "node_background"
 	| "graph_finish";
 
-export type GraphLogger = (
-	event: GraphLogEvent,
-	node: string,
-	meta?: any,
-) => void;
+export type GraphLogger = (event: GraphEvent) => void;
 
 export type WrappedSchema<I, O> = (args: I) => Promise<O>;
 
@@ -39,28 +35,54 @@ export type NodeMetric = {
 
 export type GraphEvent =
 	| {
+			type: "graph_planned";
+			entry: string;
+			nodes: string[];
+			edges: { from: string; to: string }[];
+			goals: string[];
+			timestamp: number;
+	  }
+	| {
+			type: "node_ready";
+			triggeredBy: string;
+			node: string;
+			timestamp: number;
+	  }
+	| {
 			type: "node_start";
 			node: string;
 			input: any;
 			timestamp: number;
 			pool?: string;
+			attempts?: number;
 	  }
 	| {
 			type: "node_success";
 			node: string;
 			output: any;
 			duration: number;
+			attempts?: number;
 			timestamp: number;
 	  }
-	| { type: "node_fail"; node: string; error: any; timestamp: number }
+	| {
+			type: "node_fail";
+			node: string;
+			error: any;
+			timestamp: number;
+			attempts?: number;
+	  }
 	| { type: "node_skip"; node: string; reason?: string; timestamp: number }
 	| { type: "node_background"; node: string; timestamp: number }
 	| {
 			type: "graph_finish";
 			metrics: any;
-			results: any;
+			// results: any;
+			input: any;
+			output: any;
+			state?: any;
 			timestamp: number;
 			node?: undefined;
+			traceLength?: number;
 	  };
 
 export type NodeOutput<T> = T extends WrappedSchema<any, infer O>
