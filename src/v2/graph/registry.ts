@@ -5,14 +5,16 @@ import { executeWithPlanner } from "../planner/main.js";
 // Input / Output helpers
 // -----------------------------
 export type GraphInputFor<
-	R extends Record<string, SchemaGraph<any, any>>,
+	R extends Record<string, SchemaGraph<any, any, any>>,
 	K extends keyof R,
-> = R[K] extends SchemaGraph<any, infer I> ? I : never;
+> = R[K] extends SchemaGraph<any, infer I, any> ? I : never;
 
 export type GraphOutputFor<
-	R extends Record<string, SchemaGraph<any, any>>,
+	R extends Record<string, SchemaGraph<any, any, any>>,
 	K extends keyof R,
-> = R[K] extends SchemaGraph<infer N, infer I> ? RuntimeCtx<N, I> : never;
+> = R[K] extends SchemaGraph<infer N, infer I, infer S>
+	? RuntimeCtx<N, I, S>
+	: never;
 
 // -----------------------------
 // Public registrar type (IMPORTANT)
@@ -53,7 +55,7 @@ export type GraphRegistrar<
 // }
 
 export function createGraphRegistrar<
-	R extends Record<string, SchemaGraph<any, any>>,
+	R extends Record<string, SchemaGraph<any, any, any>>,
 >(registry: R): GraphRegistrar<R> {
 	return async (name, params, opts) => {
 		const graph = registry[name];

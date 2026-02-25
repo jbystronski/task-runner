@@ -10,11 +10,11 @@ import {
 } from "../types/index.js";
 
 export function useGraph<
-	G extends SchemaGraph<any, any>,
+	G extends SchemaGraph<any, any, any>,
 	Goal extends keyof InferGraphNodes<G>,
 >(graph: G, opts: GraphOptions & { prefix?: string; goals: Goal[] }) {
 	return async (
-		initArgs: InferGraphInit<G> & { ctx?: RuntimeCtx<any, any> },
+		initArgs: InferGraphInit<G> & { ctx?: RuntimeCtx<any, any, any> },
 	): Promise<GraphResults<InferGraphNodes<G>>> => {
 		// runGraph already returns TResponse, so we need to handle it
 		// const res = await runGraph(graph, initArgs, opts);

@@ -13,7 +13,7 @@ export function createGraph<Init = {}, State = {}>(): GraphBuilder<
 	let entry: string | undefined;
 	const validator = new GraphValidator();
 
-	const builder: GraphBuilder<any, Init> = {
+	const builder: GraphBuilder<any, Init, State> = {
 		node(key, schema, runtime) {
 			if (!entry) entry = key;
 			nodes[key] = { schema, runtime };

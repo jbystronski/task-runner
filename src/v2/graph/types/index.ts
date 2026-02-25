@@ -97,11 +97,11 @@ export type GraphResults<N extends Record<string, GraphNode<any>>> = {
 	[K in keyof N]: NodeOutput<N[K]["schema"]>;
 };
 
-export type InferGraphNodes<G> = G extends SchemaGraph<infer N, any>
+export type InferGraphNodes<G> = G extends SchemaGraph<infer N, any, any>
 	? N
 	: never;
 
-export type InferGraphResults<G> = G extends SchemaGraph<infer N, any>
+export type InferGraphResults<G> = G extends SchemaGraph<infer N, any, any>
 	? GraphResults<N>
 	: never;
 
@@ -109,7 +109,7 @@ export type InferGraphResults<G> = G extends SchemaGraph<infer N, any>
 export type RuntimeCtx<
 	Nodes extends Record<string, GraphNode<any>>,
 	Init,
-	State = {}, // State defaults to empty object
+	State,
 > = {
 	_init: Init;
 	results: GraphResults<Nodes>;
@@ -133,7 +133,7 @@ export type GraphEdge<
 export type SchemaGraph<
 	Nodes extends Record<string, GraphNode<any>>,
 	Init,
-	State = {},
+	State,
 > = {
 	entry: keyof Nodes;
 	nodes: Nodes;
@@ -249,19 +249,21 @@ export type GraphBuilder<
 		when?: (ctx: RuntimeCtx<Nodes, Init, State>) => boolean, // Now fully typed!
 	): GraphBuilder<Nodes, Init, State>;
 
-	build(): SchemaGraph<Nodes, Init>;
+	build(): SchemaGraph<Nodes, Init, State>;
 };
 
-export type GraphEntryInput<G extends SchemaGraph<any, any>> =
-	G extends SchemaGraph<infer Nodes, any>
+export type GraphEntryInput<G extends SchemaGraph<any, any, any>> =
+	G extends SchemaGraph<infer Nodes, any, any>
 		? RuntimeCtx<Nodes, any, any>["_init"]
 		: never;
 
-export type GraphNodes<G> = G extends SchemaGraph<infer Nodes, any>
+export type GraphNodes<G> = G extends SchemaGraph<infer Nodes, any, any>
 	? Nodes
 	: never;
 
-export type InferGraphInit<G> = G extends SchemaGraph<any, infer I> ? I : never;
+export type InferGraphInit<G> = G extends SchemaGraph<any, infer I, any>
+	? I
+	: never;
 
 export interface GraphRegistry {}
 

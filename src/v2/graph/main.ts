@@ -24,7 +24,7 @@ export function edge<
 export const runGraphInternal = async <
 	Nodes extends Record<string, GraphNode<any>>,
 	Init,
-	State = Init & Record<string, any>,
+	State,
 >(
 	graph: SchemaGraph<Nodes, Init, State>,
 	initArgs: Init,
@@ -41,9 +41,9 @@ export const runGraphInternal = async <
 
 	const ctx: RuntimeCtx<Nodes, Init, State> = {
 		_init: initArgs,
-		results: {} as RuntimeCtx<Nodes, Init>["results"],
+		results: {} as RuntimeCtx<Nodes, Init, State>["results"],
 		metrics: {},
-		state: initialState,
+		state: initialState as RuntimeCtx<Nodes, Init, State>["state"],
 		trace: [],
 		pending: {},
 	};

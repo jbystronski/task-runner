@@ -7,6 +7,7 @@ import {
 	InferGraphNodes,
 } from "../graph/index.js";
 import { runGraphInternal } from "../graph/main.js";
+import { GraphResult } from "../graph/utils/projection.js";
 
 type NodeKey = string;
 
@@ -97,7 +98,7 @@ export async function executeWithPlanner<
 
 	goalNodes: (keyof Nodes)[],
 	opts?: GraphOptions,
-) {
+): Promise<GraphResult<Nodes, Init, State>> {
 	// Create a lightweight ctx for planning
 	const planCtx: RuntimeCtx<Nodes, Init, State> = {
 		_init: initArgs,
