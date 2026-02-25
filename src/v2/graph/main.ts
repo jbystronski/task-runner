@@ -129,8 +129,11 @@ export const runGraphInternal = async <
 					timestamp: Date.now(),
 				});
 
-				logger?.("node_skip", String(key), {
+				logger?.({
+					type: "node_skip",
+					node: String(key),
 					reason: "runtime.when === false",
+					timestamp: Date.now(),
 				});
 
 				return;
@@ -139,14 +142,12 @@ export const runGraphInternal = async <
 
 		const input = runtime.expect ? runtime.expect(ctx.state) : ctx.state; // If no transform, pass entire state
 
-		logger?.("node_start", String(key), {
+		logger?.({
+			type: "node_start",
+			node: String(key),
+			timestamp: Date.now(),
 			input,
-			attempt: metric.attempts + 1,
-		});
-
-		logger?.("node_start", String(key), {
-			input,
-			attempt: metric.attempts + 1,
+			attempts: metric.attempts + 1,
 		});
 
 		ctx.trace.push({
@@ -233,23 +234,35 @@ export const runGraphInternal = async <
 					duration: metric.duration,
 				});
 
-				logger?.("node_success", String(key), {
+				logger?.({
+					type: "node_success",
+					node: String(key),
 					output: res,
 					duration: metric.duration,
 					attempts: metric.attempts,
+					timestamp: Date.now(),
 				});
 
 				// ---------- UNLOCK ----------
+
 				for (const edge of outgoing.get(key)!) {
 					const next = edge.to as keyof Nodes;
 
 					if (!reachable.has(next)) continue;
 					if (edge.when && !edge.when(ctx)) continue;
 
-					remainingDeps.set(next, remainingDeps.get(next)! - 1);
+					const newCount = remainingDeps.get(next)! - 1;
+					remainingDeps.set(next, newCount);
 
-					if (remainingDeps.get(next) === 0) {
+					if (newCount === 0) {
 						readyQueue.push(next);
+
+						logger?.({
+							type: "node_ready",
+							triggeredBy: String(key),
+							node: String(next),
+							timestamp: Date.now(),
+						});
 					}
 				}
 
@@ -265,9 +278,12 @@ export const runGraphInternal = async <
 						timestamp: Date.now(),
 					});
 
-					logger?.("node_fail", String(key), {
-						error: err,
+					logger?.({
+						type: "node_fail",
+						node: String(key),
 						attempts: metric.attempts,
+						timestamp: Date.now(),
+						error: err,
 					});
 
 					throw err;
@@ -294,7 +310,11 @@ export const runGraphInternal = async <
 					timestamp: Date.now(),
 				});
 
-				logger?.("node_background", String(next));
+				logger?.({
+					type: "node_background",
+					node: String(next),
+					timestamp: Date.now(),
+				});
 
 				ctx.pending[next as string] = executeNode(next);
 			} else {
@@ -306,11 +326,14 @@ export const runGraphInternal = async <
 	await Promise.all(Array.from({ length: concurrency }, () => worker()));
 	await Promise.all(Object.values(ctx.pending));
 
-	logger?.("graph_finish", "_graph", {
+	logger?.({
+		type: "graph_finish",
 		metrics: ctx.metrics,
 		input: ctx._init,
 		output: ctx.results,
+		state: ctx.state,
 		traceLength: ctx.trace.length,
+		timestamp: Date.now(),
 	});
 
 	return new GraphResult(ctx);
