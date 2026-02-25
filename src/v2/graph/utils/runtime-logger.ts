@@ -5,20 +5,32 @@ function setIfPresent<T>(key: string, value: T | null | undefined) {
 	return value == null ? {} : { [key]: value };
 }
 
-export const runtimeLogger: GraphLogger = (event, node, meta) => {
-	const timestamp = Date.now();
-
-	eventStream.emit({
-		type: event as any,
-		node,
-		...setIfPresent("input", meta?.input),
-		...setIfPresent("output", meta?.output),
-		...setIfPresent("error", meta?.error),
-		...setIfPresent("duration", meta?.duration),
-		...setIfPresent("reason", meta?.reason),
-		...setIfPresent("pool", meta?.pool),
-		...setIfPresent("metrics", meta?.metrics),
-
-		timestamp,
-	} as any);
+export const runtimeLogger: GraphLogger = (ev) => {
+	eventStream.emit(ev);
+	// const timestamp = Date.now();
+	//
+	// const event = ev as any;
+	//
+	// eventStream.emit({
+	// 	type: event.type,
+	// 	...setIfPresent("node", event?.node),
+	// 	...setIfPresent("entry", event?.entry),
+	// 	...setIfPresent("nodes", event?.nodes),
+	// 	...setIfPresent("edges", event?.edges),
+	// 	...setIfPresent("from", event?.from),
+	// 	...setIfPresent("to", event?.to),
+	// 	...setIfPresent("goals", event?.goals),
+	// 	...setIfPresent("input", event?.input),
+	// 	...setIfPresent("output", event?.output),
+	// 	...setIfPresent("state", event?.state),
+	// 	...setIfPresent("traceLength", event?.traceLength),
+	// 	...setIfPresent("error", event?.error),
+	// 	...setIfPresent("duration", event?.duration),
+	// 	...setIfPresent("reason", event?.reason),
+	// 	...setIfPresent("pool", event?.pool),
+	// 	...setIfPresent("attempts", event?.attempts),
+	// 	...setIfPresent("metrics", event?.metrics),
+	//
+	// 	timestamp,
+	// } as any);
 };
