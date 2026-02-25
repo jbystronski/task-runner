@@ -40,7 +40,8 @@ export function useGraph<
 			}
 
 			// Merge nested trace into parent with prefixed node names
-			for (const event of res.trace) {
+			for (const ev of res.trace) {
+				const event = ev as any;
 				parentCtx.trace.push({
 					...event,
 					node: event?.node ? `${prefix}.${event.node}` : undefined,
