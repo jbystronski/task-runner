@@ -1,59 +1,9 @@
-// import { executeWithPlanner } from "../../planner/main.js";
-// import {
-// 	GraphOptions,
-// 	InferGraphNodes,
-// 	RuntimeCtx,
-// 	SchemaGraph,
-// } from "../types/index.js";
-//
-// export function useGraph<
-// 	G extends SchemaGraph<any, any>,
-// 	Goal extends keyof InferGraphNodes<G>,
-// >(graph: G, opts: GraphOptions & { prefix?: string; goals: Goal[] }) {
-// 	// Infer State from the graph type
-// 	type GraphState = G extends SchemaGraph<any, infer S> ? S : never;
-//
-// 	return async (
-// 		initArgs: InferGraphInit<G> & { ctx?: RuntimeCtx<any, any, GraphState> },
-// 	): Promise<GraphState> => {
-// 		const res = await executeWithPlanner(
-// 			graph,
-// 			initArgs,
-// 			opts.goals as string[],
-// 			opts,
-// 		);
-//
-// 		const parentCtx = initArgs.ctx;
-//
-// 		if (parentCtx) {
-// 			const prefix = opts?.prefix || "nested";
-//
-// 			for (const [key, metric] of Object.entries(res.metrics)) {
-// 				parentCtx.metrics[`${prefix}_${key}`] = metric;
-// 			}
-//
-// 			for (const event of res.trace) {
-// 				// Only add node prefix if the event type has a node property
-// 				if ("node" in event && event.node) {
-// 					parentCtx.trace.push({
-// 						...event,
-// 						node: `${prefix}.${event.node}`,
-// 					});
-// 				} else {
-// 					parentCtx.trace.push(event);
-// 				}
-// 			}
-// 		}
-//
-// 		return res.state;
-// 	};
-// }
-//
-
 import { executeWithPlanner } from "../../planner/main.js";
 import {
+	GraphEvent,
 	GraphOptions,
 	InferGraphNodes,
+	NodeMetric,
 	RuntimeCtx,
 	SchemaGraph,
 } from "../types/index.js";
@@ -65,37 +15,82 @@ export function useGraph<
 	// Infer State from the graph type
 	type GraphState = G extends SchemaGraph<any, infer S> ? S : never;
 
-	return async (
-		initArgs: Partial<GraphState> & { ctx?: RuntimeCtx<any, GraphState> }, // 👈 Partial<GraphState>
+	const fn = async (
+		initArgs: Partial<GraphState> & {
+			__metrics?: Record<string, NodeMetric>;
+			__trace: GraphEvent[];
+		}, // 👈 Partial<GraphState>
 	): Promise<GraphState> => {
+		// reuse whol parent ctx if no initArgs provided except ctx
+		//
+		const { __metrics, __trace, ...stateData } = initArgs;
+		// console.log("init args at sub entry", initArgs);
+		// const parentCtx = initArgs.ctx;
+		// const subgraphInit =
+		// 	Object.keys(initArgs).length === 1 && "ctx" in initArgs
+		// 		? parentCtx!.state
+		// 		: initArgs;
+
 		const res = await executeWithPlanner<any, GraphState>(
 			graph,
-			initArgs,
+			stateData as Partial<GraphState>,
 			opts.goals as string[],
 			opts,
 		);
 
-		const parentCtx = initArgs.ctx;
+		// if (parentCtx) {
+		// 	const prefix = opts?.prefix || "nested";
+		//
+		// 	for (const [key, metric] of Object.entries(res.metrics)) {
+		// 		parentCtx.metrics[`${prefix}_${key}`] = metric;
+		// 	}
+		//
+		// 	for (const event of res.trace) {
+		// 		if ("node" in event && event.node) {
+		// 			parentCtx.trace.push({
+		// 				...event,
+		// 				node: `${prefix}.${event.node}`,
+		// 			});
+		// 		} else {
+		// 			parentCtx.trace.push(event);
+		// 		}
+		// 	}
+		// }
 
-		if (parentCtx) {
+		if (__metrics) {
 			const prefix = opts?.prefix || "nested";
-
 			for (const [key, metric] of Object.entries(res.metrics)) {
-				parentCtx.metrics[`${prefix}_${key}`] = metric;
+				__metrics[`${prefix}_${key}`] = metric;
 			}
+		}
 
+		// Merge trace if it was provided
+		if (__trace) {
+			const prefix = opts?.prefix || "nested";
 			for (const event of res.trace) {
 				if ("node" in event && event.node) {
-					parentCtx.trace.push({
+					__trace.push({
 						...event,
 						node: `${prefix}.${event.node}`,
 					});
 				} else {
-					parentCtx.trace.push(event);
+					__trace.push(event);
 				}
 			}
 		}
 
+		// console.log("INIT ARGS in sub", initArgs);
+		// 🔥 ONLY auto-merge state if initArgs is JUST { ctx }
+		// This means the parent didn't provide expect, wanting passthrough
+		// if (Object.keys(initArgs).length === 1 && "ctx" in initArgs) {
+		// 	Object.assign(parentCtx!.state, res.state);
+		// }
+		console.log("SUB STATE", res.state);
 		return res.state;
 	};
+
+	fn.__isSubgraph = true;
+	fn.__goals = opts.goals;
+
+	return fn;
 }

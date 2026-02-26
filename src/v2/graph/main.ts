@@ -134,7 +134,12 @@ export const runGraphInternal = async <
 			}
 		}
 
-		const input = runtime.expect ? runtime.expect(ctx.state) : ctx.state; // If no transform, pass entire state
+		const input = runtime.expect ? runtime.expect(ctx.state) : ctx.state;
+
+		const isSubgraph =
+			node.schema.name === "useGraph" ||
+			node.schema.toString().includes("__isSubgraph") ||
+			(node.schema as any).__isSubgraph === true;
 
 		logger?.({
 			type: "node_start",
@@ -158,27 +163,33 @@ export const runGraphInternal = async <
 
 			try {
 				// Check if this schema is from useGraph (expects ctx)
-				const isSubgraph =
-					node.schema.toString().includes("ctx") || node.schema.length === 1;
 
 				let finalInput = input;
 
-				// For subgraphs, ensure ctx is present
 				if (isSubgraph) {
-					if (input === undefined || input === null) {
-						finalInput = { ctx } as any;
-					} else if (typeof input !== "object") {
-						finalInput = {
-							value: input,
-							ctx,
-						} as any;
-					} else if (input && typeof input === "object" && !("ctx" in input)) {
-						finalInput = {
-							...input,
-							ctx,
-						};
-					}
+					finalInput = {
+						...(input || {}), // State data (from expect or full state)
+						__metrics: ctx.metrics, // 👈 ALWAYS pass metrics for merging
+						__trace: ctx.trace, // 👈 ALWAYS pass trace for merging
+					};
 				}
+
+				// For subgraphs, ensure ctx is present
+				// if (isSubgraph) {
+				// 	if (input === undefined || input === null) {
+				// 		finalInput = { ctx } as any;
+				// 	} else if (typeof input !== "object") {
+				// 		finalInput = {
+				// 			value: input,
+				// 			ctx,
+				// 		} as any;
+				// 	} else if (input && typeof input === "object" && !("ctx" in input)) {
+				// 		finalInput = {
+				// 			...input,
+				// 			ctx,
+				// 		};
+				// 	}
+				// }
 
 				const execPromise = node.schema(finalInput);
 				const res = runtime.timeoutMs
@@ -190,9 +201,20 @@ export const runGraphInternal = async <
 						])
 					: await execPromise;
 
+				// if (runtime.provide) {
+				// 	const updates = runtime.provide(res, ctx.state);
+				// 	Object.assign(ctx.state as Record<string, any>, updates);
+				// }
+
+				console.log("is subgraph", isSubgraph);
 				if (runtime.provide) {
 					const updates = runtime.provide(res, ctx.state);
 					Object.assign(ctx.state as Record<string, any>, updates);
+				} else if (isSubgraph) {
+					console.log("ASSIGING FROM SUBGRAPH", isSubgraph);
+					console.log("RES FROM SUB", res);
+					// No provide means subgraph's entire state merges
+					Object.assign(ctx.state as Record<string, any>, res);
 				}
 
 				metric.end = Date.now();
