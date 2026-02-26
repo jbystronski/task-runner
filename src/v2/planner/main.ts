@@ -1,26 +1,22 @@
 import {
-	SchemaGraph,
 	GraphEdge,
+	GraphEvent,
 	GraphNode,
-	RuntimeCtx,
 	GraphOptions,
-	InferGraphNodes,
+	NodeMetric,
+	RuntimeCtx,
+	SchemaGraph,
 } from "../graph/index.js";
 import { runGraphInternal } from "../graph/main.js";
-import { GraphResult } from "../graph/utils/projection.js";
 
 type NodeKey = string;
 
 // Build reverse edges map
 function buildReverseEdges<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
->(graph: SchemaGraph<Nodes, Init, State>) {
-	const reverse = new Map<
-		keyof Nodes,
-		GraphEdge<NodeKey, Nodes, Init, State>[]
-	>();
+>(graph: SchemaGraph<Nodes, State>) {
+	const reverse = new Map<keyof Nodes, GraphEdge<NodeKey, Nodes, State>[]>();
 	for (const e of graph.edges) {
 		if (!reverse.has(e.to as keyof Nodes)) reverse.set(e.to as keyof Nodes, []);
 		reverse.get(e.to as keyof Nodes)!.push(e as any);
@@ -30,13 +26,12 @@ function buildReverseEdges<
 
 // Backward resolve required nodes given target(s) and initial ctx
 function resolveRequiredNodes<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
 >(
-	graph: SchemaGraph<Nodes, Init, State>,
+	graph: SchemaGraph<Nodes, State>,
 	goalNodes: (keyof Nodes)[],
-	initCtx: RuntimeCtx<Nodes, Init, State>,
+	initCtx: RuntimeCtx<Nodes, State>,
 ) {
 	const reverse = buildReverseEdges(graph);
 	const required = new Set<NodeKey>();
@@ -59,10 +54,9 @@ function resolveRequiredNodes<
 
 // Build subgraph from resolved nodes
 function buildExecutionGraph<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
->(graph: SchemaGraph<Nodes, Init, State>, required: Set<NodeKey>) {
+>(graph: SchemaGraph<Nodes, State>, required: Set<NodeKey>) {
 	return {
 		entry: graph.entry,
 		nodes: Object.fromEntries(
@@ -71,41 +65,44 @@ function buildExecutionGraph<
 		edges: graph.edges.filter(
 			(e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
 		),
-	} as SchemaGraph<Nodes, Init, State>;
+	} as SchemaGraph<Nodes, State>;
 }
 
 // Full planner
 export function planGraph<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
 >(
-	graph: SchemaGraph<Nodes, Init, State>,
+	graph: SchemaGraph<Nodes, State>,
 	goalNodes: (keyof Nodes)[],
-	initCtx: RuntimeCtx<Nodes, Init, State>,
+	initCtx: RuntimeCtx<Nodes, State>,
 ) {
 	const required = resolveRequiredNodes(graph, goalNodes, initCtx);
 	return buildExecutionGraph(graph, required);
 }
 
 export async function executeWithPlanner<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
 >(
-	fullGraph: SchemaGraph<Nodes, Init, State>,
-	initArgs: Init,
+	fullGraph: SchemaGraph<Nodes, State>,
+	initArgs: Partial<State>,
 
 	goalNodes: (keyof Nodes)[],
 	opts?: GraphOptions,
-): Promise<GraphResult<Nodes, Init, State>> {
+): Promise<{
+	state: State;
+	metrics: Record<string, NodeMetric>;
+	trace: GraphEvent[];
+	// init: Init;
+}> {
 	// Create a lightweight ctx for planning
-	const planCtx: RuntimeCtx<Nodes, Init, State> = {
-		_init: initArgs,
-		results: {} as any,
+	const planCtx: RuntimeCtx<Nodes, State> = {
+		// _init: initArgs,
+		// results: {} as any,
 		metrics: {},
 		trace: [],
-		state: { ...initArgs } as unknown as State,
+		state: { ...initArgs } as State,
 		pending: {},
 	};
 

@@ -3,8 +3,7 @@ import { executeWithPlanner } from "../planner/main.js";
 import { GraphListener } from "./types.js";
 
 export class GraphSession<
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
 > {
 	private state: State;
@@ -14,7 +13,7 @@ export class GraphSession<
 	private listeners: (() => void)[] = [];
 
 	constructor(
-		private graph: SchemaGraph<Nodes, Init, State>,
+		private graph: SchemaGraph<Nodes, State>,
 		initialState: State,
 		private opts?: GraphOptions,
 	) {
@@ -47,7 +46,7 @@ export class GraphSession<
 
 			const result = await executeWithPlanner(
 				this.graph,
-				this.state as unknown as Init,
+				this.state,
 				goals,
 				this.opts,
 			);

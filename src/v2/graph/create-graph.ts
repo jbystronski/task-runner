@@ -1,27 +1,34 @@
 import { GraphBuilder, GraphNode, GraphEdge } from "./types/index.js";
 import { GraphValidator } from "./validation/main.js";
 
-export function createGraph<Init = {}, State = {}>(): GraphBuilder<
-	{},
-	Init,
-	State
-> {
-	const nodes: Record<string, GraphNode<any>> = {};
-	// const edges: GraphEdge<string>[] = [];
-
-	const edges: GraphEdge<keyof any, any, Init, State>[] = [];
+export function createGraph<State = {}>(): GraphBuilder<{}, State> {
+	const nodes: Record<string, GraphNode<any, any, any, State>> = {};
+	// Fix: Type edges with the correct generic structure
+	const edges: GraphEdge<
+		string,
+		Record<string, GraphNode<any, any, any, State>>,
+		State
+	>[] = [];
 	let entry: string | undefined;
 	const validator = new GraphValidator();
 
-	const builder: GraphBuilder<any, Init, State> = {
+	const builder: GraphBuilder<any, State> = {
 		node(key, schema, runtime) {
 			if (!entry) entry = key;
-			nodes[key] = { schema, runtime };
-			return builder as any;
+			nodes[key] = { schema, runtime } as GraphNode<any, any, any, State>;
+			return builder;
 		},
 
 		edge(from, to, when) {
-			edges.push({ from, to, when } as GraphEdge<keyof any, any, Init, State>);
+			edges.push({
+				from,
+				to,
+				when,
+			} as GraphEdge<
+				string,
+				Record<string, GraphNode<any, any, any, State>>,
+				State
+			>);
 			return builder;
 		},
 
@@ -30,11 +37,11 @@ export function createGraph<Init = {}, State = {}>(): GraphBuilder<
 
 			const graph = {
 				entry,
-				nodes: nodes as any,
-				edges: edges as any,
+				nodes: nodes as Record<string, GraphNode<any, any, any, State>>,
+				edges: edges,
 			};
 
-			// Run validation
+			// Now this should work without 'as any'
 			const validation = validator.validate(graph);
 
 			if (!validation.valid) {
@@ -55,5 +62,5 @@ export function createGraph<Init = {}, State = {}>(): GraphBuilder<
 			return graph;
 		},
 	};
-	return builder as GraphBuilder<{}, Init, State>;
+	return builder;
 }

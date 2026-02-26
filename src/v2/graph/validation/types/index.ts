@@ -15,14 +15,18 @@ export type ValidationResult = {
 };
 
 // Type-level validation (compile-time)
-export type ValidateGraph<G extends SchemaGraph<any, any, any>> =
-	ValidateNodes<G> &
-		ValidateEdges<G> &
-		ValidateNoCycles<G> &
-		ValidateReachability<G>;
+export type ValidateGraph<G extends SchemaGraph<any, any>> = ValidateNodes<G> &
+	ValidateEdges<G> &
+	ValidateNoCycles<G> &
+	ValidateReachability<G>;
 
-type ValidateNodes<G extends SchemaGraph<any, any, any>> = {
-	[K in keyof G["nodes"]]: G["nodes"][K] extends GraphNode<infer FN>
+type ValidateNodes<G extends SchemaGraph<any, any>> = {
+	[K in keyof G["nodes"]]: G["nodes"][K] extends GraphNode<
+		infer FN,
+		any,
+		any,
+		any
+	>
 		? ValidateNode<FN, K>
 		: never;
 };
@@ -35,7 +39,7 @@ type ValidateNode<FN extends WrappedSchema<any, any>, K> = FN extends (
 			__error: [`Node ${K extends string ? K : "unknown"} has invalid schema`];
 		};
 
-type ValidateEdges<G extends SchemaGraph<any, any, any>> =
+type ValidateEdges<G extends SchemaGraph<any, any>> =
 	G["edges"][number] extends infer E
 		? E extends { from: infer From; to: infer To }
 			? From extends keyof G["nodes"]
@@ -54,18 +58,18 @@ type ValidateEdges<G extends SchemaGraph<any, any, any>> =
 			: unknown
 		: unknown;
 
-type ValidateNoCycles<G extends SchemaGraph<any, any, any>> =
+type ValidateNoCycles<G extends SchemaGraph<any, any>> =
 	HasCycle<G> extends true ? { __error: ["Graph contains cycles"] } : unknown;
 
-type HasCycle<G extends SchemaGraph<any, any, any>> = false; // Simplified - would need complex graph traversal at type level
+type HasCycle<G extends SchemaGraph<any, any>> = false; // Simplified - would need complex graph traversal at type level
 
-type ValidateReachability<G extends SchemaGraph<any, any, any>> =
+type ValidateReachability<G extends SchemaGraph<any, any>> =
 	AllNodesReachable<G, G["entry"]> extends true
 		? unknown
 		: { __error: ["Some nodes are unreachable from entry"] };
 
 type AllNodesReachable<
-	G extends SchemaGraph<any, any, any>,
+	G extends SchemaGraph<any, any>,
 	Entry,
 	Visited = never,
 > = keyof G["nodes"] extends Visited ? true : false;

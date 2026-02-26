@@ -6,28 +6,25 @@ import {
 	RuntimeCtx,
 	SchemaGraph,
 } from "./types/index.js";
-import { GraphResult } from "./utils/projection.js";
 
 export function edge<
 	K extends keyof any,
-	Nodes extends Record<string, GraphNode<any>>, // Add constraint
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>, // Add constraint
 	State,
 >(
 	from: K,
 	to: K,
-	when?: (ctx: RuntimeCtx<Nodes, Init, State>) => boolean,
-): GraphEdge<K, Nodes, Init, State> {
-	return { from, to, when } as GraphEdge<K, Nodes, Init, State>;
+	when?: (ctx: RuntimeCtx<Nodes, State>) => boolean,
+): GraphEdge<K, Nodes, State> {
+	return { from, to, when } as GraphEdge<K, Nodes, State>;
 }
 
 export const runGraphInternal = async <
-	Nodes extends Record<string, GraphNode<any>>,
-	Init,
+	Nodes extends Record<string, GraphNode<any, any, any, State>>,
 	State,
 >(
-	graph: SchemaGraph<Nodes, Init, State>,
-	initArgs: Init,
+	graph: SchemaGraph<Nodes, State>,
+	initArgs: Partial<State>,
 	opts?: GraphOptions,
 ) => {
 	const concurrency = opts?.concurrency ?? 4;
@@ -36,14 +33,11 @@ export const runGraphInternal = async <
 	// Initialize state with initArgs - this is the foundation
 	const initialState = {
 		...initArgs,
-		// Any other default state can go here
 	} as unknown as State;
 
-	const ctx: RuntimeCtx<Nodes, Init, State> = {
-		_init: initArgs,
-		results: {} as RuntimeCtx<Nodes, Init, State>["results"],
+	const ctx: RuntimeCtx<Nodes, State> = {
 		metrics: {},
-		state: initialState as RuntimeCtx<Nodes, Init, State>["state"],
+		state: initialState as RuntimeCtx<Nodes, State>["state"],
 		trace: [],
 		pending: {},
 	};
@@ -54,11 +48,11 @@ export const runGraphInternal = async <
 
 	const incoming = new Map<
 		keyof Nodes,
-		GraphEdge<keyof Nodes, Nodes, Init, State>[]
+		GraphEdge<keyof Nodes, Nodes, State>[]
 	>();
 	const outgoing = new Map<
 		keyof Nodes,
-		GraphEdge<keyof Nodes, Nodes, Init, State>[]
+		GraphEdge<keyof Nodes, Nodes, State>[]
 	>();
 	for (const k of nodeKeys) {
 		incoming.set(k, []);
@@ -196,31 +190,10 @@ export const runGraphInternal = async <
 						])
 					: await execPromise;
 
-				// Store result
-				ctx.results[key] = res;
-
-				// 🔥 NEW: Provide data to shared state
-
 				if (runtime.provide) {
-					// Cast ctx.state to Record<string, any> for dynamic property assignment
-					const state = ctx.state as Record<string, any>;
-					for (const [key, mapper] of Object.entries(runtime.provide)) {
-						state[key] = mapper?.(res, ctx.state);
-					}
+					const updates = runtime.provide(res, ctx.state);
+					Object.assign(ctx.state as Record<string, any>, updates);
 				}
-
-				// 🔥 NEW: Provide data to shared state
-
-				// 🔥 NEW: Provide data to downstream nodes via state
-				// if (runtime.provide) {
-				// 	// Type assertion that we're working with the right shape
-				// 	const provide = runtime.provide as {
-				// 		[K in keyof Nodes]?: (result: any, state: State) => any;
-				// 	};
-				// 	for (const [key, mapper] of Object.entries(provide)) {
-				// 		ctx.state[key] = mapper?.(res, ctx.state);
-				// 	}
-				// }
 
 				metric.end = Date.now();
 				metric.duration = metric.end - metric.start;
@@ -329,12 +302,14 @@ export const runGraphInternal = async <
 	logger?.({
 		type: "graph_finish",
 		metrics: ctx.metrics,
-		input: ctx._init,
-		output: ctx.results,
+
 		state: ctx.state,
 		traceLength: ctx.trace.length,
 		timestamp: Date.now(),
 	});
-
-	return new GraphResult(ctx);
+	return {
+		state: ctx.state,
+		metrics: ctx.metrics,
+		trace: ctx.trace,
+	};
 };

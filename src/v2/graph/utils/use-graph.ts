@@ -1,55 +1,101 @@
-import { executeWithPlanner } from "../../planner/main.js";
+// import { executeWithPlanner } from "../../planner/main.js";
+// import {
+// 	GraphOptions,
+// 	InferGraphNodes,
+// 	RuntimeCtx,
+// 	SchemaGraph,
+// } from "../types/index.js";
+//
+// export function useGraph<
+// 	G extends SchemaGraph<any, any>,
+// 	Goal extends keyof InferGraphNodes<G>,
+// >(graph: G, opts: GraphOptions & { prefix?: string; goals: Goal[] }) {
+// 	// Infer State from the graph type
+// 	type GraphState = G extends SchemaGraph<any, infer S> ? S : never;
+//
+// 	return async (
+// 		initArgs: InferGraphInit<G> & { ctx?: RuntimeCtx<any, any, GraphState> },
+// 	): Promise<GraphState> => {
+// 		const res = await executeWithPlanner(
+// 			graph,
+// 			initArgs,
+// 			opts.goals as string[],
+// 			opts,
+// 		);
+//
+// 		const parentCtx = initArgs.ctx;
+//
+// 		if (parentCtx) {
+// 			const prefix = opts?.prefix || "nested";
+//
+// 			for (const [key, metric] of Object.entries(res.metrics)) {
+// 				parentCtx.metrics[`${prefix}_${key}`] = metric;
+// 			}
+//
+// 			for (const event of res.trace) {
+// 				// Only add node prefix if the event type has a node property
+// 				if ("node" in event && event.node) {
+// 					parentCtx.trace.push({
+// 						...event,
+// 						node: `${prefix}.${event.node}`,
+// 					});
+// 				} else {
+// 					parentCtx.trace.push(event);
+// 				}
+// 			}
+// 		}
+//
+// 		return res.state;
+// 	};
+// }
+//
 
+import { executeWithPlanner } from "../../planner/main.js";
 import {
-	SchemaGraph,
-	InferGraphInit,
 	GraphOptions,
-	GraphResults,
 	InferGraphNodes,
 	RuntimeCtx,
+	SchemaGraph,
 } from "../types/index.js";
 
 export function useGraph<
-	G extends SchemaGraph<any, any, any>,
+	G extends SchemaGraph<any, any>,
 	Goal extends keyof InferGraphNodes<G>,
 >(graph: G, opts: GraphOptions & { prefix?: string; goals: Goal[] }) {
-	return async (
-		initArgs: InferGraphInit<G> & { ctx?: RuntimeCtx<any, any, any> },
-	): Promise<GraphResults<InferGraphNodes<G>>> => {
-		// runGraph already returns TResponse, so we need to handle it
-		// const res = await runGraph(graph, initArgs, opts);
+	// Infer State from the graph type
+	type GraphState = G extends SchemaGraph<any, infer S> ? S : never;
 
-		const res = await executeWithPlanner(
+	return async (
+		initArgs: Partial<GraphState> & { ctx?: RuntimeCtx<any, GraphState> }, // 👈 Partial<GraphState>
+	): Promise<GraphState> => {
+		const res = await executeWithPlanner<any, GraphState>(
 			graph,
 			initArgs,
 			opts.goals as string[],
 			opts,
 		);
-		// If it's a failure, throw it (let the graph runtime handle it)
 
-		// Get the parent context from initArgs
 		const parentCtx = initArgs.ctx;
 
-		// If we have a parent context, merge metrics and trace
 		if (parentCtx) {
 			const prefix = opts?.prefix || "nested";
 
-			// Merge nested metrics into parent with prefix
 			for (const [key, metric] of Object.entries(res.metrics)) {
 				parentCtx.metrics[`${prefix}_${key}`] = metric;
 			}
 
-			// Merge nested trace into parent with prefixed node names
-			for (const ev of res.trace) {
-				const event = ev as any;
-				parentCtx.trace.push({
-					...event,
-					node: event?.node ? `${prefix}.${event.node}` : undefined,
-				});
+			for (const event of res.trace) {
+				if ("node" in event && event.node) {
+					parentCtx.trace.push({
+						...event,
+						node: `${prefix}.${event.node}`,
+					});
+				} else {
+					parentCtx.trace.push(event);
+				}
 			}
 		}
 
-		// Return just the results (raw data)
-		return res.results;
+		return res.state;
 	};
 }

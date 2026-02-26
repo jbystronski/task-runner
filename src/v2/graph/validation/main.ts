@@ -10,8 +10,11 @@ export class GraphValidator {
 	private errors: ValidationError[] = [];
 	private warnings: ValidationError[] = [];
 
-	validate<Nodes extends Record<string, GraphNode<any>>, Init, State = any>(
-		graph: SchemaGraph<Nodes, Init, State>, // Add State generic
+	validate<
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
+		State,
+	>(
+		graph: SchemaGraph<Nodes, State>, // Add State generic
 	): ValidationResult {
 		this.errors = [];
 		this.warnings = [];
@@ -31,10 +34,9 @@ export class GraphValidator {
 	}
 
 	private validateEntry<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
-		State = any,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
+		State,
+	>(graph: SchemaGraph<Nodes, State>) {
 		if (!graph.entry) {
 			this.errors.push({
 				path: ["graph"],
@@ -54,16 +56,15 @@ export class GraphValidator {
 	}
 
 	private validateNodes<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
-		State = any,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
+		State,
+	>(graph: SchemaGraph<Nodes, State>) {
 		for (const [key, node] of Object.entries(graph.nodes)) {
 			this.validateNode(key, node);
 		}
 	}
 
-	private validateNode(key: string, node: GraphNode<any>) {
+	private validateNode(key: string, node: GraphNode<any, any, any, any>) {
 		if (!node.schema) {
 			this.errors.push({
 				path: ["nodes", key],
@@ -85,7 +86,10 @@ export class GraphValidator {
 		}
 	}
 
-	private validateRuntimeConfig(key: string, runtime: NodeRuntimeConfig) {
+	private validateRuntimeConfig(
+		key: string,
+		runtime: NodeRuntimeConfig<any, any, any>,
+	) {
 		if (runtime.retry !== undefined && runtime.retry < 0) {
 			this.warnings.push({
 				path: ["nodes", key, "runtime", "retry"],
@@ -112,10 +116,9 @@ export class GraphValidator {
 	}
 
 	private validateEdges<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
 		State,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+	>(graph: SchemaGraph<Nodes, State>) {
 		for (let i = 0; i < graph.edges.length; i++) {
 			const edge = graph.edges[i];
 			this.validateEdge(i, edge, graph);
@@ -123,13 +126,12 @@ export class GraphValidator {
 	}
 
 	private validateEdge<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
 		State,
 	>(
 		index: number,
-		edge: GraphEdge<keyof Nodes, Nodes, Init, State>, // Add all 4 generics
-		graph: SchemaGraph<Nodes, Init, State>,
+		edge: GraphEdge<keyof Nodes, Nodes, State>, // Add all 4 generics
+		graph: SchemaGraph<Nodes, State>,
 	) {
 		// Check from node exists
 		if (!(edge.from in graph.nodes)) {
@@ -160,10 +162,9 @@ export class GraphValidator {
 	}
 
 	private validateDependencies<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
 		State,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+	>(graph: SchemaGraph<Nodes, State>) {
 		const incomingCount = new Map<keyof Nodes, number>();
 
 		for (const key of Object.keys(graph.nodes) as (keyof Nodes)[]) {
@@ -186,10 +187,9 @@ export class GraphValidator {
 	}
 
 	private validateCycles<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
 		State,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+	>(graph: SchemaGraph<Nodes, State>) {
 		const visited = new Set<keyof Nodes>();
 		const recursionStack = new Set<keyof Nodes>();
 
@@ -219,10 +219,9 @@ export class GraphValidator {
 	}
 
 	private validateReachability<
-		Nodes extends Record<string, GraphNode<any>>,
-		Init,
+		Nodes extends Record<string, GraphNode<any, any, any, State>>,
 		State,
-	>(graph: SchemaGraph<Nodes, Init, State>) {
+	>(graph: SchemaGraph<Nodes, State>) {
 		const reachable = new Set<keyof Nodes>();
 
 		const dfs = (node: keyof Nodes) => {
