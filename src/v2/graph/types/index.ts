@@ -89,27 +89,10 @@ export type GraphEvent =
 			traceLength?: number;
 	  };
 
-// export type NodeOutput<T, State> =
-// 	T extends WrappedSchema<any, infer O>
-// 		? O extends RuntimeCtx<infer N, any, any>
-// 			? GraphResults<N, State>
-// 			: O extends { results: infer R }
-// 				? R
-// 				: O
-// 		: never;
 export type GraphNodeWithState<State> = GraphNode<any, any, any, State>;
-// export type GraphResults<
-// 	N extends Record<string, GraphNode<any, any, any, State>>,
-// 	State,
-// > = {
-// 	[K in keyof N]: NodeOutput<N[K]["schema"], State>;
-// };
 
 export type InferGraphNodes<G> =
 	G extends SchemaGraph<infer N, any> ? N : never;
-
-// export type InferGraphResults<G, State> =
-// 	G extends SchemaGraph<infer N, any, any> ? GraphResults<N, State> : never;
 
 // RuntimeCtx with State generic
 export type RuntimeCtx<
@@ -157,7 +140,7 @@ export type SchemaGraph<
 // };
 // NodeRuntimeConfig with proper generics
 //
-type Exact<T, U extends T> = U & Record<Exclude<keyof U, keyof T>, never>;
+
 export type NodeRuntimeConfig<
 	Nodes extends Record<string, GraphNode<any, any, any, CurrentState>>,
 	CurrentKey extends keyof Nodes,
