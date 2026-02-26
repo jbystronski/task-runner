@@ -21,7 +21,7 @@ export type ExtractOutput<T> =
 
 export type GraphNode<
 	FN extends WrappedSchema<any, any>,
-	Nodes extends Record<string, GraphNode<FN, Nodes, CurrentKey, CurrentState>>,
+	Nodes extends Record<string, GraphNode<any, any, any, any>>,
 	CurrentKey extends keyof Nodes,
 	CurrentState,
 > = {
