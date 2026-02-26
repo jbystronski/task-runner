@@ -6,6 +6,6 @@
     "rootDir": "./src",
     "removeComments": false
   },
-  "include": ["src/v1/**/*", "src/v2/**/*", "src/index.ts"],
+  "include": ["src/v2/**/*", "src/index.ts"],
   "exclude": ["src/test/**/*", "**/*.test.ts", "node_modules", "dist"]
 }
