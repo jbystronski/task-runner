@@ -18,7 +18,7 @@ export function useGraph<
 	const fn = async (
 		initArgs: Partial<GraphState> & {
 			__metrics?: Record<string, NodeMetric>;
-			__trace: GraphEvent[];
+			__trace?: GraphEvent[];
 		}, // 👈 Partial<GraphState>
 	): Promise<GraphState> => {
 		// reuse whol parent ctx if no initArgs provided except ctx
