@@ -7,11 +7,7 @@ import {
   SchemaGraph,
 } from "./types/index.js";
 
-export function edge<
-  K extends string,
-
-  State,
->(
+export function edge<K extends string, State>(
   from: K,
   to: K,
   when?: (ctx: RuntimeCtx<State>) => boolean,
@@ -162,8 +158,6 @@ export const runGraphInternal = async <
       metric.attempts++;
 
       try {
-        // Check if this schema is from useGraph (expects ctx)
-
         let finalInput = input;
 
         if (isSubgraph) {
@@ -174,46 +168,20 @@ export const runGraphInternal = async <
           };
         }
 
-        // For subgraphs, ensure ctx is present
-        // if (isSubgraph) {
-        // 	if (input === undefined || input === null) {
-        // 		finalInput = { ctx } as any;
-        // 	} else if (typeof input !== "object") {
-        // 		finalInput = {
-        // 			value: input,
-        // 			ctx,
-        // 		} as any;
-        // 	} else if (input && typeof input === "object" && !("ctx" in input)) {
-        // 		finalInput = {
-        // 			...input,
-        // 			ctx,
-        // 		};
-        // 	}
-        // }
-
         const execPromise = node.schema(finalInput);
         const res = runtime.timeoutMs
           ? await Promise.race([
-            execPromise,
-            new Promise((_, rej) =>
-              setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
-            ),
-          ])
+              execPromise,
+              new Promise((_, rej) =>
+                setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
+              ),
+            ])
           : await execPromise;
 
-        // if (runtime.provide) {
-        // 	const updates = runtime.provide(res, ctx.state);
-        // 	Object.assign(ctx.state as Record<string, any>, updates);
-        // }
-
-        console.log("is subgraph", isSubgraph);
         if (runtime.provide) {
           const updates = runtime.provide(res, ctx.state);
           Object.assign(ctx.state as Record<string, any>, updates);
         } else if (isSubgraph) {
-          console.log("ASSIGING FROM SUBGRAPH", isSubgraph);
-          console.log("RES FROM SUB", res);
-          // No provide means subgraph's entire state merges
           Object.assign(ctx.state as Record<string, any>, res);
         }
 
