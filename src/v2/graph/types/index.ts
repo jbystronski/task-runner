@@ -144,6 +144,10 @@ export type GraphBuilder<
   Nodes extends Record<string, GraphNode<any, State>> = {},
   State = {},
 > = {
+  extend<G extends SchemaGraph<any, State>>(
+    graph: G,
+  ): GraphBuilder<Nodes & GraphNodes<G>, State>;
+
   node<K extends string, FN extends WrappedSchema<any, any>>(
     key: K,
     schema: FN,

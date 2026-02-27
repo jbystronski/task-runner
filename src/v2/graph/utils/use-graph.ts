@@ -20,41 +20,13 @@ export function useGraph<
       __trace?: GraphEvent[];
     }, // 👈 Partial<GraphState>
   ): Promise<GraphState> => {
-    // reuse whol parent ctx if no initArgs provided except ctx
-    //
     const { __metrics, __trace, ...stateData } = initArgs;
-    // console.log("init args at sub entry", initArgs);
-    // const parentCtx = initArgs.ctx;
-    // const subgraphInit =
-    // 	Object.keys(initArgs).length === 1 && "ctx" in initArgs
-    // 		? parentCtx!.state
-    // 		: initArgs;
-
     const res = await executeWithPlanner<any, GraphState>(
       graph,
       stateData as Partial<GraphState>,
       opts.goals as string[],
       opts,
     );
-
-    // if (parentCtx) {
-    // 	const prefix = opts?.prefix || "nested";
-    //
-    // 	for (const [key, metric] of Object.entries(res.metrics)) {
-    // 		parentCtx.metrics[`${prefix}_${key}`] = metric;
-    // 	}
-    //
-    // 	for (const event of res.trace) {
-    // 		if ("node" in event && event.node) {
-    // 			parentCtx.trace.push({
-    // 				...event,
-    // 				node: `${prefix}.${event.node}`,
-    // 			});
-    // 		} else {
-    // 			parentCtx.trace.push(event);
-    // 		}
-    // 	}
-    // }
 
     if (__metrics) {
       const prefix = opts?.prefix || "nested";

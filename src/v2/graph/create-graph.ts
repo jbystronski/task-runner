@@ -17,8 +17,45 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
       return builder;
     },
 
+    // edge(from, to, when) {
+    //   edges.push({ from, to, when });
+    //   return builder;
+    // },
+
     edge(from, to, when) {
-      edges.push({ from, to, when });
+      const exists = edges.some((e) => e.from === from && e.to === to);
+
+      if (!exists) {
+        edges.push({ from, to, when });
+      }
+
+      return builder;
+    },
+
+    extend(graph) {
+      // Merge nodes (base first)
+      for (const [key, node] of Object.entries(graph.nodes)) {
+        if (!(key in nodes)) {
+          nodes[key] = node as GraphNode<any, State>;
+        }
+      }
+
+      // Merge edges
+      for (const edge of graph.edges) {
+        const exists = edges.some(
+          (e) => e.from === edge.from && e.to === edge.to,
+        );
+
+        if (!exists) {
+          edges.push(edge);
+        }
+      }
+
+      // Entry resolution
+      if (!entry) {
+        entry = graph.entry as string;
+      }
+
       return builder;
     },
 
