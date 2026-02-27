@@ -1,5 +1,3 @@
-
-
 import { GraphBuilder, GraphNode, GraphEdge } from "./types/index.js";
 import { GraphValidator } from "./validation/main.js";
 
@@ -34,7 +32,6 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
         nodes,
         edges,
       };
-
       const validation = validator.validate(graph);
 
       if (!validation.valid) {

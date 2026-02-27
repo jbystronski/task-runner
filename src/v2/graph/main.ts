@@ -7,11 +7,7 @@ import {
   SchemaGraph,
 } from "./types/index.js";
 
-export function edge<
-  K extends string,
-
-  State,
->(
+export function edge<K extends string, State>(
   from: K,
   to: K,
   when?: (ctx: RuntimeCtx<State>) => boolean,
@@ -194,11 +190,11 @@ export const runGraphInternal = async <
         const execPromise = node.schema(finalInput);
         const res = runtime.timeoutMs
           ? await Promise.race([
-            execPromise,
-            new Promise((_, rej) =>
-              setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
-            ),
-          ])
+              execPromise,
+              new Promise((_, rej) =>
+                setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
+              ),
+            ])
           : await execPromise;
 
         // if (runtime.provide) {

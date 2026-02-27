@@ -4,7 +4,6 @@ import {
   GraphOptions,
   InferGraphNodes,
   NodeMetric,
-
   SchemaGraph,
 } from "../types/index.js";
 
