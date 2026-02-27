@@ -3,73 +3,73 @@
 import { SchemaGraph, GraphNode, WrappedSchema } from "../../types/index.js";
 
 export type ValidationError = {
-	path: string[];
-	message: string;
-	severity: "error" | "warning";
+  path: string[];
+  message: string;
+  severity: "error" | "warning";
 };
 
 export type ValidationResult = {
-	valid: boolean;
-	errors: ValidationError[];
-	warnings: ValidationError[];
+  valid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationError[];
 };
 
 // Type-level validation (compile-time)
 export type ValidateGraph<G extends SchemaGraph<any, any>> = ValidateNodes<G> &
-	ValidateEdges<G> &
-	ValidateNoCycles<G> &
-	ValidateReachability<G>;
+  ValidateEdges<G> &
+  ValidateNoCycles<G> &
+  ValidateReachability<G>;
 
 type ValidateNodes<G extends SchemaGraph<any, any>> = {
-	[K in keyof G["nodes"]]: G["nodes"][K] extends GraphNode<
-		infer FN,
-		any,
-		any,
-		any
-	>
-		? ValidateNode<FN, K>
-		: never;
+  [K in keyof G["nodes"]]: G["nodes"][K] extends GraphNode<
+    infer FN,
+
+
+    any
+  >
+  ? ValidateNode<FN, K>
+  : never;
 };
 
 type ValidateNode<FN extends WrappedSchema<any, any>, K> = FN extends (
-	...args: any[]
+  ...args: any[]
 ) => any
-	? unknown
-	: {
-			__error: [`Node ${K extends string ? K : "unknown"} has invalid schema`];
-		};
+  ? unknown
+  : {
+    __error: [`Node ${K extends string ? K : "unknown"} has invalid schema`];
+  };
 
 type ValidateEdges<G extends SchemaGraph<any, any>> =
-	G["edges"][number] extends infer E
-		? E extends { from: infer From; to: infer To }
-			? From extends keyof G["nodes"]
-				? To extends keyof G["nodes"]
-					? unknown
-					: {
-							__error: [
-								`Edge to node ${To extends string ? To : "unknown"} does not exist`,
-							];
-						}
-				: {
-						__error: [
-							`Edge from node ${From extends string ? From : "unknown"} does not exist`,
-						];
-					}
-			: unknown
-		: unknown;
+  G["edges"][number] extends infer E
+  ? E extends { from: infer From; to: infer To }
+  ? From extends keyof G["nodes"]
+  ? To extends keyof G["nodes"]
+  ? unknown
+  : {
+    __error: [
+      `Edge to node ${To extends string ? To : "unknown"} does not exist`,
+    ];
+  }
+  : {
+    __error: [
+      `Edge from node ${From extends string ? From : "unknown"} does not exist`,
+    ];
+  }
+  : unknown
+  : unknown;
 
 type ValidateNoCycles<G extends SchemaGraph<any, any>> =
-	HasCycle<G> extends true ? { __error: ["Graph contains cycles"] } : unknown;
+  HasCycle<G> extends true ? { __error: ["Graph contains cycles"] } : unknown;
 
 type HasCycle<G extends SchemaGraph<any, any>> = false; // Simplified - would need complex graph traversal at type level
 
 type ValidateReachability<G extends SchemaGraph<any, any>> =
-	AllNodesReachable<G, G["entry"]> extends true
-		? unknown
-		: { __error: ["Some nodes are unreachable from entry"] };
+  AllNodesReachable<G, G["entry"]> extends true
+  ? unknown
+  : { __error: ["Some nodes are unreachable from entry"] };
 
 type AllNodesReachable<
-	G extends SchemaGraph<any, any>,
-	Entry,
-	Visited = never,
+  G extends SchemaGraph<any, any>,
+  Entry,
+  Visited = never,
 > = keyof G["nodes"] extends Visited ? true : false;

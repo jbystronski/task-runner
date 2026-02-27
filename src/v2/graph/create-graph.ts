@@ -1,66 +1,60 @@
+
+
 import { GraphBuilder, GraphNode, GraphEdge } from "./types/index.js";
 import { GraphValidator } from "./validation/main.js";
 
 export function createGraph<State = {}>(): GraphBuilder<{}, State> {
-	const nodes: Record<string, GraphNode<any, any, any, State>> = {};
-	// Fix: Type edges with the correct generic structure
-	const edges: GraphEdge<
-		string,
-		Record<string, GraphNode<any, any, any, State>>,
-		State
-	>[] = [];
-	let entry: string | undefined;
-	const validator = new GraphValidator();
+  const nodes: Record<string, GraphNode<any, State>> = {};
+  const edges: GraphEdge<string, State>[] = [];
 
-	const builder: GraphBuilder<any, State> = {
-		node(key, schema, runtime) {
-			if (!entry) entry = key;
-			nodes[key] = { schema, runtime } as GraphNode<any, any, any, State>;
-			return builder;
-		},
+  let entry: string | undefined;
+  const validator = new GraphValidator();
 
-		edge(from, to, when) {
-			edges.push({
-				from,
-				to,
-				when,
-			} as GraphEdge<
-				string,
-				Record<string, GraphNode<any, any, any, State>>,
-				State
-			>);
-			return builder;
-		},
+  const builder: GraphBuilder<any, State> = {
+    node(key, schema, runtime) {
+      if (!entry) entry = key;
 
-		build() {
-			if (!entry) throw new Error("Graph must have an entry node");
+      nodes[key] = { schema, runtime };
 
-			const graph = {
-				entry,
-				nodes: nodes as Record<string, GraphNode<any, any, any, State>>,
-				edges: edges,
-			};
+      return builder;
+    },
 
-			// Now this should work without 'as any'
-			const validation = validator.validate(graph);
+    edge(from, to, when) {
+      edges.push({ from, to, when });
+      return builder;
+    },
 
-			if (!validation.valid) {
-				const errorMessages = validation.errors
-					.map((e) => `${e.path.join(".")}: ${e.message}`)
-					.join("\n");
+    build() {
+      if (!entry) {
+        throw new Error("Graph must have an entry node");
+      }
 
-				throw new Error(`Graph validation failed:\n${errorMessages}`);
-			}
+      const graph = {
+        entry,
+        nodes,
+        edges,
+      };
 
-			if (validation.warnings.length > 0) {
-				console.warn("Graph validation warnings:");
-				validation.warnings.forEach((w) => {
-					console.warn(`  ${w.path.join(".")}: ${w.message}`);
-				});
-			}
+      const validation = validator.validate(graph);
 
-			return graph;
-		},
-	};
-	return builder;
+      if (!validation.valid) {
+        const errorMessages = validation.errors
+          .map((e) => `${e.path.join(".")}: ${e.message}`)
+          .join("\n");
+
+        throw new Error(`Graph validation failed:\n${errorMessages}`);
+      }
+
+      if (validation.warnings.length > 0) {
+        console.warn("Graph validation warnings:");
+        validation.warnings.forEach((w) => {
+          console.warn(`  ${w.path.join(".")}: ${w.message}`);
+        });
+      }
+
+      return graph;
+    },
+  };
+
+  return builder;
 }
