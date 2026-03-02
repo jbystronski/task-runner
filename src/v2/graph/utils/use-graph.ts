@@ -50,13 +50,6 @@ export function useGraph<
       }
     }
 
-    // console.log("INIT ARGS in sub", initArgs);
-    // 🔥 ONLY auto-merge state if initArgs is JUST { ctx }
-    // This means the parent didn't provide expect, wanting passthrough
-    // if (Object.keys(initArgs).length === 1 && "ctx" in initArgs) {
-    // 	Object.assign(parentCtx!.state, res.state);
-    // }
-    console.log("SUB STATE", res.state);
     return res.state;
   };
 
