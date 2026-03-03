@@ -1,7 +1,7 @@
-export type GraphOptions = {
-  concurrency?: number;
-  log?: GraphLogger;
-};
+// export type GraphOptions = {
+//   concurrency?: number;
+//   log?: GraphLogger;
+// };
 
 export type GraphLogEvent =
   | "node_start"
@@ -89,15 +89,6 @@ export type GraphNodeWithState<State> = GraphNode<any, State>;
 export type InferGraphNodes<G> =
   G extends SchemaGraph<infer N, any> ? N : never;
 
-// RuntimeCtx with State generic
-export type RuntimeCtx<State> = {
-  // results: GraphResults<Nodes, State>;
-  metrics: Record<string, NodeMetric>;
-  trace: GraphEvent[];
-  state: State; // Use the State type
-  pending: Record<string, Promise<any>>;
-};
-
 export type GraphEdge<NodeKeys extends string, State> = {
   from: NodeKeys;
   to: NodeKeys;
@@ -111,6 +102,7 @@ export type SchemaGraph<
   entry: keyof Nodes;
   nodes: Nodes;
   edges: GraphEdge<keyof Nodes & string, State>[]; // Now carries State
+  middleware?: GraphMiddleware<State>[];
 };
 
 // type ProvideMap<
@@ -131,13 +123,14 @@ export type SchemaGraph<
 
 export type NodeRuntimeConfig<FN extends WrappedSchema<any, any>, State> = {
   background?: boolean;
-  retry?: number;
-  timeoutMs?: number;
+  // retry?: number;
+  // timeoutMs?: number;
   when?: (ctx: RuntimeCtx<State>) => boolean | Promise<boolean>;
   pool?: string;
   expect?: (state: State) => ExtractInput<FN>;
   // provide?: ProvideMap<Nodes, CurrentKey, CurrentState>;
   provide?: (result: ExtractOutput<FN>, state: State) => Partial<State>;
+  middleware?: GraphMiddleware<State>[];
 };
 
 export type GraphBuilder<
@@ -147,6 +140,8 @@ export type GraphBuilder<
   extend<G extends SchemaGraph<any, State>>(
     graph: G,
   ): GraphBuilder<Nodes & GraphNodes<G>, State>;
+
+  use(mw: GraphMiddleware<State>): GraphBuilder<Nodes, State>;
 
   node<K extends string, FN extends WrappedSchema<any, any>>(
     key: K,
@@ -181,7 +176,48 @@ export interface GraphRegistry {}
 
 export type GraphRunOptions = {
   concurrency?: number;
-  log?: GraphLogger;
-
+  // log?: GraphLogger;
+  // middleware?: GraphMiddleware<any>[];
   pools?: Record<string, number>;
+};
+
+export type InternalRunOptions<State> = GraphRunOptions & {
+  runtime?: ExecutionRuntime<State>;
+};
+
+export type NodeExecutionFrame<State> = {
+  node: string;
+  input?: any;
+  output?: any;
+  error?: any;
+  attempts: number;
+  start: number;
+  end?: number;
+};
+
+export type GraphMiddleware<State> = (
+  ctx: {
+    node: string;
+    graph: SchemaGraph<any, State>;
+    state: State;
+    runtime: ExecutionRuntime<State>;
+  },
+  next: () => Promise<any>,
+) => Promise<any>;
+
+export type ExecutionRuntime<State> = {
+  middleware: GraphMiddleware<State>[];
+  context: {
+    metrics?: Record<string, any>;
+    frames?: Record<string, NodeExecutionFrame<State>>;
+  };
+};
+
+export type RuntimeCtx<State> = {
+  // results: GraphResults<Nodes, State>;
+  // metrics: Record<string, NodeMetric>;
+  // trace: GraphEvent[];
+  state: State; // Use the State type
+  pending: Record<string, Promise<any>>;
+  runtime: ExecutionRuntime<State>;
 };

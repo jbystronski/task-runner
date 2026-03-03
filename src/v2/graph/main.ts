@@ -1,7 +1,11 @@
+import { SUBGRAPH } from "./constants.js";
+import { composeMiddleware } from "./middleware/index.js";
 import {
+  ExecutionRuntime,
   GraphEdge,
   GraphNode,
-  GraphOptions,
+  InternalRunOptions,
+  NodeExecutionFrame,
   NodeMetric,
   RuntimeCtx,
   SchemaGraph,
@@ -21,35 +25,35 @@ export const runGraphInternal = async <
 >(
   graph: SchemaGraph<Nodes, State>,
   initArgs: Partial<State>,
-  opts?: GraphOptions,
+  opts?: InternalRunOptions<State>,
 ) => {
   const concurrency = opts?.concurrency ?? 4;
-  const logger = opts?.log;
 
-  // Initialize state with initArgs - this is the foundation
-  const initialState = {
-    ...initArgs,
-  } as unknown as State;
+  const runtime: ExecutionRuntime<State> = {
+    middleware: [
+      ...(graph.middleware ?? []),
+      ...(opts?.runtime?.middleware ?? []),
+    ],
+    context: {
+      ...(opts?.runtime?.context ?? {}),
+    },
+  };
+
+  // Ensure frame storage exists
+  runtime.context.frames ??= {};
 
   const ctx: RuntimeCtx<State> = {
-    metrics: {},
-    state: initialState as RuntimeCtx<State>["state"],
-    trace: [],
+    state: { ...initArgs } as State,
     pending: {},
+    runtime,
   };
 
   const nodeKeys = Object.keys(graph.nodes) as (keyof Nodes)[];
 
-  // ---------- GRAPH INDEX ----------
+  // --- index edges ---
+  const incoming = new Map<keyof Nodes, GraphEdge<any, State>[]>();
+  const outgoing = new Map<keyof Nodes, GraphEdge<any, State>[]>();
 
-  const incoming = new Map<
-    keyof Nodes,
-    GraphEdge<keyof Nodes & string, State>[]
-  >();
-  const outgoing = new Map<
-    keyof Nodes,
-    GraphEdge<keyof Nodes & string, State>[]
-  >();
   for (const k of nodeKeys) {
     incoming.set(k, []);
     outgoing.set(k, []);
@@ -60,24 +64,20 @@ export const runGraphInternal = async <
     outgoing.get(e.from as keyof Nodes)!.push(e as any);
   }
 
-  // ---------- REACHABILITY ----------
+  // --- reachability ---
   const reachable = new Set<keyof Nodes>();
 
   const dfs = (node: keyof Nodes) => {
     if (reachable.has(node)) return;
     reachable.add(node);
-
-    const outs = outgoing.get(node);
-    if (!outs) return;
-
-    for (const edge of outs) {
+    for (const edge of outgoing.get(node) ?? []) {
       dfs(edge.to as keyof Nodes);
     }
   };
 
   dfs(graph.entry as keyof Nodes);
 
-  // ---------- DEP COUNTERS ----------
+  // --- dependency counters ---
   const remainingDeps = new Map<keyof Nodes, number>();
 
   for (const k of nodeKeys) {
@@ -90,195 +90,104 @@ export const runGraphInternal = async <
     remainingDeps.set(k, deps);
   }
 
-  // ---------- READY QUEUE ----------
   const readyQueue: (keyof Nodes)[] = [];
 
   for (const k of nodeKeys) {
     if (!reachable.has(k)) continue;
     if (remainingDeps.get(k) === 0) readyQueue.push(k);
   }
-
-  // ---------- EXECUTION ----------
   async function executeNode(key: keyof Nodes) {
     const node = graph.nodes[key];
-    const runtime = node.runtime ?? {};
+    const runtimeConfig = node.runtime ?? {};
 
-    const metric: NodeMetric = (ctx.metrics[key as string] = {
-      start: Date.now(),
-      status: "success",
-      attempts: 0,
-    });
-
-    if (runtime.when) {
-      const ok = await runtime.when(ctx);
-      if (!ok) {
-        metric.status = "skipped";
-        ctx.trace.push({
-          type: "node_skip",
-          node: String(key),
-          timestamp: Date.now(),
-        });
-
-        logger?.({
-          type: "node_skip",
-          node: String(key),
-          reason: "runtime.when === false",
-          timestamp: Date.now(),
-        });
-
-        return;
-      }
+    if (runtimeConfig.when) {
+      const ok = await runtimeConfig.when(ctx);
+      if (!ok) return;
     }
 
-    const input = runtime.expect ? runtime.expect(ctx.state) : ctx.state;
-
-    const isSubgraph =
-      node.schema.name === "useGraph" ||
-      node.schema.toString().includes("__isSubgraph") ||
-      (node.schema as any).__isSubgraph === true;
-
-    logger?.({
-      type: "node_start",
+    // --- Create frame ---
+    const frame: NodeExecutionFrame<State> = {
       node: String(key),
-      timestamp: Date.now(),
-      input,
-      attempts: metric.attempts + 1,
-    });
+      attempts: 0,
+      start: Date.now(),
+      input: undefined,
+    };
+    runtime.context.frames![String(key)] = frame;
 
-    ctx.trace.push({
-      type: "node_start",
-      node: String(key),
-      input,
-      timestamp: Date.now(),
-    });
+    // --- compute input BEFORE middleware ---
+    const input = runtimeConfig.expect
+      ? runtimeConfig.expect(ctx.state)
+      : ctx.state;
+    frame.input = input; // 👈 set early so middleware sees it
 
-    const retryCount = runtime.retry ?? 0;
-
-    for (let attempt = 0; attempt <= retryCount; attempt++) {
-      metric.attempts++;
+    const core = async () => {
+      frame.attempts++;
 
       try {
-        let finalInput = input;
-
-        if (isSubgraph) {
-          finalInput = {
-            ...(input || {}), // State data (from expect or full state)
-            __metrics: ctx.metrics, // 👈 ALWAYS pass metrics for merging
-            __trace: ctx.trace, // 👈 ALWAYS pass trace for merging
-          };
+        let result;
+        if ((node.schema as any)[SUBGRAPH]) {
+          result = await node.schema(input, ctx.runtime);
+        } else {
+          result = await node.schema(input);
         }
 
-        const execPromise = node.schema(finalInput);
-        const res = runtime.timeoutMs
-          ? await Promise.race([
-              execPromise,
-              new Promise((_, rej) =>
-                setTimeout(() => rej(new Error("Timeout")), runtime.timeoutMs),
-              ),
-            ])
-          : await execPromise;
+        frame.output = result;
+        frame.end = Date.now();
 
-        if (runtime.provide) {
-          const updates = runtime.provide(res, ctx.state);
-          Object.assign(ctx.state as Record<string, any>, updates);
-        } else if (isSubgraph) {
-          Object.assign(ctx.state as Record<string, any>, res);
+        if (runtimeConfig.provide) {
+          Object.assign(
+            ctx.state as Record<string, any>,
+            runtimeConfig.provide(result, ctx.state),
+          );
+        } else if ((node.schema as any)[SUBGRAPH]) {
+          Object.assign(ctx.state as Record<string, any>, result);
         }
 
-        metric.end = Date.now();
-        metric.duration = metric.end - metric.start;
-        metric.status = "success";
-
-        ctx.trace.push({
-          type: "node_success",
-          node: String(key),
-          output: res,
-          timestamp: Date.now(),
-          duration: metric.duration,
-        });
-
-        logger?.({
-          type: "node_success",
-          node: String(key),
-          output: res,
-          duration: metric.duration,
-          attempts: metric.attempts,
-          timestamp: Date.now(),
-        });
-
-        // ---------- UNLOCK ----------
-
-        for (const edge of outgoing.get(key)!) {
-          const next = edge.to as keyof Nodes;
-
-          if (!reachable.has(next)) continue;
-          if (edge.when && !edge.when(ctx)) continue;
-
-          const newCount = remainingDeps.get(next)! - 1;
-          remainingDeps.set(next, newCount);
-
-          if (newCount === 0) {
-            readyQueue.push(next);
-
-            logger?.({
-              type: "node_ready",
-              triggeredBy: String(key),
-              node: String(next),
-              timestamp: Date.now(),
-            });
-          }
-        }
-
-        return;
+        return result;
       } catch (err) {
-        if (attempt >= retryCount) {
-          metric.status = "fail";
-
-          ctx.trace.push({
-            error: err,
-            type: "node_fail",
-            node: String(key),
-            timestamp: Date.now(),
-          });
-
-          logger?.({
-            type: "node_fail",
-            node: String(key),
-            attempts: metric.attempts,
-            timestamp: Date.now(),
-            error: err,
-          });
-
-          throw err;
-        }
-
-        await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
+        frame.error = err;
+        frame.end = Date.now();
+        throw err;
       }
+    };
+
+    const nodeMiddleware = runtimeConfig.middleware ?? [];
+
+    const composed = composeMiddleware(
+      [...runtime.middleware, ...nodeMiddleware],
+      {
+        node: String(key),
+        graph,
+        state: ctx.state,
+        runtime: ctx.runtime,
+      },
+      core,
+    );
+
+    await composed();
+
+    // --- unlock dependents ---
+    for (const edge of outgoing.get(key)!) {
+      const next = edge.to as keyof Nodes;
+      if (!reachable.has(next)) continue;
+      if (edge.when && !edge.when(ctx)) continue;
+
+      const newCount = remainingDeps.get(next)! - 1;
+      remainingDeps.set(next, newCount);
+
+      if (newCount === 0) readyQueue.push(next);
     }
   }
 
-  // ---------- WORKER POOL ----------
   async function worker() {
     while (true) {
       const next = readyQueue.shift();
       if (!next) return;
 
       const node = graph.nodes[next];
-      const runtime = node.runtime ?? {};
+      const runtimeConfig = node.runtime ?? {};
 
-      if (runtime.background) {
-        ctx.trace.push({
-          type: "node_background",
-          node: String(next),
-          timestamp: Date.now(),
-        });
-
-        logger?.({
-          type: "node_background",
-          node: String(next),
-          timestamp: Date.now(),
-        });
-
+      if (runtimeConfig.background) {
         ctx.pending[next as string] = executeNode(next);
       } else {
         await executeNode(next);
@@ -289,17 +198,8 @@ export const runGraphInternal = async <
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
   await Promise.all(Object.values(ctx.pending));
 
-  logger?.({
-    type: "graph_finish",
-    metrics: ctx.metrics,
-
-    state: ctx.state,
-    traceLength: ctx.trace.length,
-    timestamp: Date.now(),
-  });
   return {
     state: ctx.state,
-    metrics: ctx.metrics,
-    trace: ctx.trace,
+    runtime: ctx.runtime,
   };
 };

@@ -1,19 +1,11 @@
-import {
-  GraphNode,
-  SchemaGraph,
-  NodeRuntimeConfig,
-  GraphEdge,
-} from "../types/index.js";
+import { GraphNode, SchemaGraph, GraphEdge } from "../types/index.js";
 import { ValidationError, ValidationResult } from "./types/index.js";
 
 export class GraphValidator {
   private errors: ValidationError[] = [];
   private warnings: ValidationError[] = [];
 
-  validate<
-    Nodes extends Record<string, GraphNode<any, State>>,
-    State,
-  >(
+  validate<Nodes extends Record<string, GraphNode<any, State>>, State>(
     graph: SchemaGraph<Nodes, State>, // Add State generic
   ): ValidationResult {
     this.errors = [];
@@ -81,39 +73,39 @@ export class GraphValidator {
       });
     }
 
-    if (node.runtime) {
-      this.validateRuntimeConfig(key, node.runtime);
-    }
+    // if (node.runtime) {
+    //   this.validateRuntimeConfig(key, node.runtime);
+    // }
   }
 
-  private validateRuntimeConfig(
-    key: string,
-    runtime: NodeRuntimeConfig<any, any>,
-  ) {
-    if (runtime.retry !== undefined && runtime.retry < 0) {
-      this.warnings.push({
-        path: ["nodes", key, "runtime", "retry"],
-        message: `Node "${key}" retry count should be >= 0`,
-        severity: "warning",
-      });
-    }
-
-    if (runtime.timeoutMs !== undefined && runtime.timeoutMs < 0) {
-      this.errors.push({
-        path: ["nodes", key, "runtime", "timeoutMs"],
-        message: `Node "${key}" timeout must be positive`,
-        severity: "error",
-      });
-    }
-
-    if (runtime.pool && typeof runtime.pool !== "string") {
-      this.errors.push({
-        path: ["nodes", key, "runtime", "pool"],
-        message: `Node "${key}" pool must be a string`,
-        severity: "error",
-      });
-    }
-  }
+  // private validateRuntimeConfig(
+  //   key: string,
+  //   runtime: NodeRuntimeConfig<any, any>,
+  // ) {
+  //   if (runtime.retry !== undefined && runtime.retry < 0) {
+  //     this.warnings.push({
+  //       path: ["nodes", key, "runtime", "retry"],
+  //       message: `Node "${key}" retry count should be >= 0`,
+  //       severity: "warning",
+  //     });
+  //   }
+  //
+  //   if (runtime.timeoutMs !== undefined && runtime.timeoutMs < 0) {
+  //     this.errors.push({
+  //       path: ["nodes", key, "runtime", "timeoutMs"],
+  //       message: `Node "${key}" timeout must be positive`,
+  //       severity: "error",
+  //     });
+  //   }
+  //
+  //   if (runtime.pool && typeof runtime.pool !== "string") {
+  //     this.errors.push({
+  //       path: ["nodes", key, "runtime", "pool"],
+  //       message: `Node "${key}" pool must be a string`,
+  //       severity: "error",
+  //     });
+  //   }
+  // }
 
   private validateEdges<
     Nodes extends Record<string, GraphNode<any, State>>,

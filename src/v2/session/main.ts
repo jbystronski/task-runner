@@ -1,4 +1,4 @@
-import { GraphNode, SchemaGraph, GraphOptions } from "../graph/index.js";
+import { GraphNode, GraphRunOptions, SchemaGraph } from "../graph/index.js";
 import { executeWithPlanner } from "../planner/main.js";
 import { GraphListener } from "./types.js";
 
@@ -15,7 +15,7 @@ export class GraphSession<
   constructor(
     private graph: SchemaGraph<Nodes, State>,
     initialState: State,
-    private opts?: GraphOptions,
+    private opts?: GraphRunOptions,
   ) {
     this.state = initialState;
   }

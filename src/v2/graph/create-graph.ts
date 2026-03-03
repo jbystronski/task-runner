@@ -1,4 +1,9 @@
-import { GraphBuilder, GraphNode, GraphEdge } from "./types/index.js";
+import {
+  GraphBuilder,
+  GraphNode,
+  GraphEdge,
+  GraphMiddleware,
+} from "./types/index.js";
 import { GraphValidator } from "./validation/main.js";
 
 export function createGraph<State = {}>(): GraphBuilder<{}, State> {
@@ -7,6 +12,7 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
 
   let entry: string | undefined;
   const validator = new GraphValidator();
+  let graphMiddleware: GraphMiddleware<State>[] = [];
 
   const builder: GraphBuilder<any, State> = {
     node(key, schema, runtime) {
@@ -59,6 +65,11 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
       return builder;
     },
 
+    use(mw: GraphMiddleware<State>) {
+      graphMiddleware.push(mw);
+      return builder;
+    },
+
     build() {
       if (!entry) {
         throw new Error("Graph must have an entry node");
@@ -68,6 +79,7 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
         entry,
         nodes,
         edges,
+        middleware: graphMiddleware,
       };
       const validation = validator.validate(graph);
 

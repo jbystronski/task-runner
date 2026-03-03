@@ -1,8 +1,9 @@
 import {
+  ExecutionRuntime,
   GraphEdge,
   GraphEvent,
   GraphNode,
-  GraphOptions,
+  GraphRunOptions,
   NodeMetric,
   RuntimeCtx,
   SchemaGraph,
@@ -53,6 +54,21 @@ function resolveRequiredNodes<
 }
 
 // Build subgraph from resolved nodes
+// function buildExecutionGraph<
+//   Nodes extends Record<string, GraphNode<any, State>>,
+//   State,
+// >(graph: SchemaGraph<Nodes, State>, required: Set<NodeKey>) {
+//   return {
+//     entry: graph.entry,
+//     nodes: Object.fromEntries(
+//       Object.entries(graph.nodes).filter(([k]) => required.has(k)),
+//     ) as any,
+//     edges: graph.edges.filter(
+//       (e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
+//     ),
+//   } as SchemaGraph<Nodes, State>;
+// }
+
 function buildExecutionGraph<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
@@ -65,6 +81,9 @@ function buildExecutionGraph<
     edges: graph.edges.filter(
       (e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
     ),
+
+    // 🔥 preserve graph-level middleware
+    middleware: graph.middleware,
   } as SchemaGraph<Nodes, State>;
 }
 
@@ -89,38 +108,42 @@ export async function executeWithPlanner<
   initArgs: Partial<State>,
 
   goalNodes: (keyof Nodes)[],
-  opts?: GraphOptions,
+  opts?: GraphRunOptions,
 ): Promise<{
   state: State;
-  metrics: Record<string, NodeMetric>;
-  trace: GraphEvent[];
+  runtime: ExecutionRuntime<State>;
+  // metrics: Record<string, NodeMetric>;
+  // trace: GraphEvent[];
   // init: Init;
 }> {
   // Create a lightweight ctx for planning
+
   const planCtx: RuntimeCtx<State> = {
-    // _init: initArgs,
-    // results: {} as any,
-    metrics: {},
-    trace: [],
     state: { ...initArgs } as State,
     pending: {},
+    runtime: {
+      middleware: fullGraph.middleware ?? [],
+      context: {},
+    },
   };
+
+  console.log("PLAN CTX", planCtx);
 
   // Phase 1: Plan
   const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
-  const logger = opts?.log;
-
-  logger?.({
-    type: "graph_planned",
-    entry: String(executionGraph.entry),
-    nodes: Object.keys(executionGraph.nodes),
-    edges: executionGraph.edges.map((e) => ({
-      from: String(e.from),
-      to: String(e.to),
-    })),
-    goals: goalNodes.map(String),
-    timestamp: Date.now(),
-  });
+  // const logger = opts?.log;
+  //
+  // logger?.({
+  //   type: "graph_planned",
+  //   entry: String(executionGraph.entry),
+  //   nodes: Object.keys(executionGraph.nodes),
+  //   edges: executionGraph.edges.map((e) => ({
+  //     from: String(e.from),
+  //     to: String(e.to),
+  //   })),
+  //   goals: goalNodes.map(String),
+  //   timestamp: Date.now(),
+  // });
 
   // Phase 2: Execute (scheduler already handles DAG + parallelism)
   return runGraphInternal(executionGraph, initArgs, opts);
