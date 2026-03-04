@@ -1,4 +1,5 @@
 import {
+  eventStream,
   ExecutionRuntime,
   GraphEdge,
   GraphEvent,
@@ -127,23 +128,21 @@ export async function executeWithPlanner<
     },
   };
 
-  console.log("PLAN CTX", planCtx);
-
   // Phase 1: Plan
   const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
   // const logger = opts?.log;
   //
-  // logger?.({
-  //   type: "graph_planned",
-  //   entry: String(executionGraph.entry),
-  //   nodes: Object.keys(executionGraph.nodes),
-  //   edges: executionGraph.edges.map((e) => ({
-  //     from: String(e.from),
-  //     to: String(e.to),
-  //   })),
-  //   goals: goalNodes.map(String),
-  //   timestamp: Date.now(),
-  // });
+  eventStream.emit({
+    type: "graph_planned",
+    entry: String(executionGraph.entry),
+    nodes: Object.keys(executionGraph.nodes),
+    edges: executionGraph.edges.map((e) => ({
+      from: String(e.from),
+      to: String(e.to),
+    })),
+    goals: goalNodes.map(String),
+    timestamp: Date.now(),
+  });
 
   // Phase 2: Execute (scheduler already handles DAG + parallelism)
   return runGraphInternal(executionGraph, initArgs, opts);
