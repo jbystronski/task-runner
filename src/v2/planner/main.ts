@@ -2,10 +2,8 @@ import {
   eventStream,
   ExecutionRuntime,
   GraphEdge,
-  GraphEvent,
   GraphNode,
   GraphRunOptions,
-  NodeMetric,
   RuntimeCtx,
   SchemaGraph,
 } from "../graph/index.js";
@@ -13,20 +11,50 @@ import { runGraphInternal } from "../graph/main.js";
 
 type NodeKey = string;
 
-// Build reverse edges map
+/* -------------------------------------------------------
+ * Utilities
+ * ----------------------------------------------------- */
+
+// Edge is allowed if:
+// - goals undefined → allowed
+// - goals empty → allowed
+// - goals intersects active goals → allowed
+function edgeAllowedForGoals<State>(
+  edge: GraphEdge<NodeKey, State>,
+  activeGoals: Set<NodeKey>,
+) {
+  if (!edge.goals || edge.goals.length === 0) return true;
+
+  for (const g of edge.goals) {
+    if (activeGoals.has(g)) return true;
+  }
+
+  return false;
+}
+
+/* -------------------------------------------------------
+ * Reverse Edge Map
+ * ----------------------------------------------------- */
+
 function buildReverseEdges<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
 >(graph: SchemaGraph<Nodes, State>) {
-  const reverse = new Map<keyof Nodes, GraphEdge<NodeKey, State>[]>();
+  const reverse = new Map<NodeKey, GraphEdge<NodeKey, State>[]>();
+
   for (const e of graph.edges) {
-    if (!reverse.has(e.to as keyof Nodes)) reverse.set(e.to as keyof Nodes, []);
-    reverse.get(e.to as keyof Nodes)!.push(e as any);
+    const to = e.to as NodeKey;
+    if (!reverse.has(to)) reverse.set(to, []);
+    reverse.get(to)!.push(e as GraphEdge<NodeKey, State>);
   }
+
   return reverse;
 }
 
-// Backward resolve required nodes given target(s) and initial ctx
+/* -------------------------------------------------------
+ * Backward Resolution (Goal-Aware)
+ * ----------------------------------------------------- */
+
 function resolveRequiredNodes<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
@@ -37,58 +65,75 @@ function resolveRequiredNodes<
 ) {
   const reverse = buildReverseEdges(graph);
   const required = new Set<NodeKey>();
+  const activeGoals = new Set<NodeKey>(goalNodes as NodeKey[]);
 
   function walk(node: keyof Nodes) {
-    if (required.has(node as string)) return;
-    required.add(node as string);
+    const key = node as NodeKey;
+    if (required.has(key)) return;
 
-    const incoming = reverse.get(node) ?? [];
+    required.add(key);
+
+    const incoming = reverse.get(key) ?? [];
+
     for (const edge of incoming) {
-      // evaluate edge.when against initial context
+      // 🔥 goal filtering
+      if (!edgeAllowedForGoals(edge, activeGoals)) continue;
+
+      // 🔥 edge.when evaluated against initial planning context
       if (edge.when && !edge.when(initCtx)) continue;
-      walk(edge.from);
+
+      walk(edge.from as keyof Nodes);
     }
   }
 
   goalNodes.forEach(walk);
+
   return required;
 }
 
-// Build subgraph from resolved nodes
-// function buildExecutionGraph<
-//   Nodes extends Record<string, GraphNode<any, State>>,
-//   State,
-// >(graph: SchemaGraph<Nodes, State>, required: Set<NodeKey>) {
-//   return {
-//     entry: graph.entry,
-//     nodes: Object.fromEntries(
-//       Object.entries(graph.nodes).filter(([k]) => required.has(k)),
-//     ) as any,
-//     edges: graph.edges.filter(
-//       (e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
-//     ),
-//   } as SchemaGraph<Nodes, State>;
-// }
+/* -------------------------------------------------------
+ * Build Execution Graph (Must Mirror Goal Filtering)
+ * ----------------------------------------------------- */
 
 function buildExecutionGraph<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
->(graph: SchemaGraph<Nodes, State>, required: Set<NodeKey>) {
+>(
+  graph: SchemaGraph<Nodes, State>,
+  required: Set<NodeKey>,
+  goalNodes: (keyof Nodes)[],
+) {
+  const activeGoals = new Set<NodeKey>(goalNodes as NodeKey[]);
+
   return {
     entry: graph.entry,
-    nodes: Object.fromEntries(
-      Object.entries(graph.nodes).filter(([k]) => required.has(k)),
-    ) as any,
-    edges: graph.edges.filter(
-      (e) => required.has(e.from as NodeKey) && required.has(e.to as NodeKey),
-    ),
 
-    // 🔥 preserve graph-level middleware
+    nodes: Object.fromEntries(
+      Object.entries(graph.nodes).filter(([k]) => required.has(k as NodeKey)),
+    ) as any,
+
+    edges: graph.edges.filter((e) => {
+      const from = e.from as NodeKey;
+      const to = e.to as NodeKey;
+
+      if (!required.has(from)) return false;
+      if (!required.has(to)) return false;
+
+      // 🔥 MUST re-apply goal filtering here
+      if (!edgeAllowedForGoals(e as any, activeGoals)) return false;
+
+      return true;
+    }),
+
+    // preserve graph-level middleware
     middleware: graph.middleware,
   } as SchemaGraph<Nodes, State>;
 }
 
-// Full planner
+/* -------------------------------------------------------
+ * Planner
+ * ----------------------------------------------------- */
+
 export function planGraph<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
@@ -98,8 +143,13 @@ export function planGraph<
   initCtx: RuntimeCtx<State>,
 ) {
   const required = resolveRequiredNodes(graph, goalNodes, initCtx);
-  return buildExecutionGraph(graph, required);
+
+  return buildExecutionGraph(graph, required, goalNodes);
 }
+
+/* -------------------------------------------------------
+ * Execute With Planner
+ * ----------------------------------------------------- */
 
 export async function executeWithPlanner<
   Nodes extends Record<string, GraphNode<any, State>>,
@@ -107,18 +157,13 @@ export async function executeWithPlanner<
 >(
   fullGraph: SchemaGraph<Nodes, State>,
   initArgs: Partial<State>,
-
   goalNodes: (keyof Nodes)[],
   opts?: GraphRunOptions,
 ): Promise<{
   state: State;
   runtime: ExecutionRuntime<State>;
-  // metrics: Record<string, NodeMetric>;
-  // trace: GraphEvent[];
-  // init: Init;
 }> {
-  // Create a lightweight ctx for planning
-
+  // Lightweight planning context
   const planCtx: RuntimeCtx<State> = {
     state: { ...initArgs } as State,
     pending: {},
@@ -130,8 +175,7 @@ export async function executeWithPlanner<
 
   // Phase 1: Plan
   const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
-  // const logger = opts?.log;
-  //
+
   eventStream.emit({
     type: "graph_planned",
     entry: String(executionGraph.entry),
@@ -144,6 +188,6 @@ export async function executeWithPlanner<
     timestamp: Date.now(),
   });
 
-  // Phase 2: Execute (scheduler already handles DAG + parallelism)
+  // Phase 2: Execute
   return runGraphInternal(executionGraph, initArgs, opts);
 }

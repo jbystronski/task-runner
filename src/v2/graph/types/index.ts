@@ -92,6 +92,7 @@ export type InferGraphNodes<G> =
 export type GraphEdge<NodeKeys extends string, State> = {
   from: NodeKeys;
   to: NodeKeys;
+  goals?: NodeKeys[];
   when?: (ctx: RuntimeCtx<State>) => boolean;
 };
 
@@ -104,22 +105,6 @@ export type SchemaGraph<
   edges: GraphEdge<keyof Nodes & string, State>[]; // Now carries State
   middleware?: GraphMiddleware<State>[];
 };
-
-// type ProvideMap<
-// 	Nodes extends Record<string, GraphNode<any, any, any, any>>,
-// 	CurrentKey extends keyof Nodes,
-// 	CurrentState,
-// > = {
-// 	[K in keyof CurrentState]?: (
-// 		result: ExtractOutput<Nodes[CurrentKey]["schema"]>,
-// 		state: CurrentState,
-// 	) => CurrentState[K];
-// };
-// type ProvideMapReturn<CurrentState> = {
-// 	[K in keyof CurrentState]?: CurrentState[K]; // Direct values, not functions
-// };
-// NodeRuntimeConfig with proper generics
-//
 
 export type NodeRuntimeConfig<FN extends WrappedSchema<any, any>, State> = {
   background?: boolean;
@@ -155,22 +140,15 @@ export type GraphBuilder<
   >(
     from: From,
     to: To,
+    goals?: Extract<keyof Nodes, string>[],
     when?: (ctx: RuntimeCtx<State>) => boolean, // Now fully typed!
   ): GraphBuilder<Nodes, State>;
 
   build(): SchemaGraph<Nodes, State>;
 };
 
-// export type GraphEntryInput<G extends SchemaGraph<any, any>> =
-// 	G extends SchemaGraph<infer Nodes, any>
-// 		? RuntimeCtx<Nodes, any, any>["_init"]
-// 		: never;
-
 export type GraphNodes<G> =
   G extends SchemaGraph<infer Nodes, any> ? Nodes : never;
-
-// export type InferGraphInit<G> =
-// 	G extends SchemaGraph<any, infer I, any> ? I : never;
 
 export interface GraphRegistry {}
 

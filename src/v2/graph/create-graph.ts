@@ -28,11 +28,11 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
     //   return builder;
     // },
 
-    edge(from, to, when) {
+    edge(from, to, goals, when) {
       const exists = edges.some((e) => e.from === from && e.to === to);
 
       if (!exists) {
-        edges.push({ from, to, when });
+        edges.push({ from, to, goals, when });
       }
 
       return builder;
