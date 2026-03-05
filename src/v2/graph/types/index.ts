@@ -199,3 +199,12 @@ export type RuntimeCtx<State> = {
   pending: Record<string, Promise<any>>;
   runtime: ExecutionRuntime<State>;
 };
+
+export type GoalExpr<K> = (K | GoalExpr<K>)[];
+
+// export type GoalNodes<K extends string> = readonly (
+//   | K
+//   | readonly GoalNodes<K>
+// )[];
+export type GoalNodes<K extends string> = readonly (K | GoalNodes<K>)[];
+export type StringKey<T> = Extract<keyof T, string>;

@@ -1,4 +1,10 @@
-import { GraphNode, GraphRunOptions, SchemaGraph } from "../graph/index.js";
+import {
+  GoalNodes,
+  GraphNode,
+  GraphRunOptions,
+  SchemaGraph,
+  StringKey,
+} from "../graph/index.js";
 import { executeWithPlanner } from "../planner/main.js";
 import { GraphListener } from "./types.js";
 
@@ -8,8 +14,10 @@ export class GraphSession<
 > {
   private state: State;
   private running = false;
-  private queue: Array<{ partial: Partial<State>; goals: (keyof Nodes)[] }> =
-    [];
+  private queue: Array<{
+    partial: Partial<State>;
+    goals: GoalNodes<StringKey<Nodes>>;
+  }> = [];
   private listeners: (() => void)[] = [];
 
   constructor(
@@ -22,13 +30,13 @@ export class GraphSession<
 
   listen(listener: GraphListener<Nodes, State>) {
     const cleanup = listener.start((partial) => {
-      this.dispatch(partial, listener.goals as (keyof Nodes)[]);
+      this.dispatch(partial, listener.goals);
     });
 
     this.listeners.push(cleanup);
   }
 
-  async dispatch(partial: Partial<State>, goals: (keyof Nodes)[]) {
+  async dispatch(partial: Partial<State>, goals: GoalNodes<StringKey<Nodes>>) {
     this.queue.push({ partial, goals });
     if (!this.running) {
       await this.processQueue();

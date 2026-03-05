@@ -2,18 +2,20 @@ import { executeWithPlanner } from "../../planner/main.js";
 import { SUBGRAPH } from "../constants.js";
 import {
   ExecutionRuntime,
+  GoalNodes,
   GraphEvent,
   GraphRunOptions,
   InferGraphNodes,
   InternalRunOptions,
   NodeMetric,
   SchemaGraph,
+  StringKey,
 } from "../types/index.js";
 
 export function useGraph<
   G extends SchemaGraph<any, any>,
-  Goal extends keyof InferGraphNodes<G>,
->(graph: G, opts: GraphRunOptions & { goals: Goal[] }) {
+  Goal extends StringKey<InferGraphNodes<G>>,
+>(graph: G, opts: GraphRunOptions & { goals: GoalNodes<Goal> }) {
   type GraphState = G extends SchemaGraph<any, infer S> ? S : never;
 
   const fn = async (
@@ -23,7 +25,7 @@ export function useGraph<
     const res = await executeWithPlanner<any, GraphState>(
       graph,
       initArgs,
-      opts.goals as string[],
+      opts.goals,
       {
         ...opts,
         runtime: parentRuntime, // only here

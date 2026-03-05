@@ -1,7 +1,9 @@
 import {
   eventStream,
   ExecutionRuntime,
+  GoalNodes,
   GraphEdge,
+  StringKey,
   GraphNode,
   GraphRunOptions,
   RuntimeCtx,
@@ -10,6 +12,37 @@ import {
 import { runGraphInternal } from "../graph/main.js";
 
 type NodeKey = string;
+
+function normalizeGoalPhases<K extends string>(expr: GoalNodes<K>): K[][] {
+  const phases: K[][] = [];
+  let current: K[] = [];
+
+  const walk = (node: K | GoalNodes<K>) => {
+    if (Array.isArray(node)) {
+      if (current.length) {
+        phases.push(current);
+        current = [];
+      }
+
+      for (const n of node) walk(n);
+
+      if (current.length) {
+        phases.push(current);
+        current = [];
+      }
+
+      return;
+    }
+
+    current.push(node as K);
+  };
+
+  for (const n of expr) walk(n);
+
+  if (current.length) phases.push(current);
+
+  return phases;
+}
 
 /* -------------------------------------------------------
  * Utilities
@@ -157,37 +190,49 @@ export async function executeWithPlanner<
 >(
   fullGraph: SchemaGraph<Nodes, State>,
   initArgs: Partial<State>,
-  goalNodes: (keyof Nodes)[],
+  goalExpr: GoalNodes<Extract<keyof Nodes, string>>,
   opts?: GraphRunOptions,
 ): Promise<{
   state: State;
   runtime: ExecutionRuntime<State>;
 }> {
-  // Lightweight planning context
-  const planCtx: RuntimeCtx<State> = {
-    state: { ...initArgs } as State,
-    pending: {},
-    runtime: {
-      middleware: fullGraph.middleware ?? [],
-      context: {},
-    },
-  };
+  const phases = normalizeGoalPhases<StringKey<Nodes>>(goalExpr);
 
-  // Phase 1: Plan
-  const executionGraph = planGraph(fullGraph, goalNodes, planCtx);
+  let state = { ...initArgs } as State;
+  let runtime: ExecutionRuntime<State> | undefined;
 
-  eventStream.emit({
-    type: "graph_planned",
-    entry: String(executionGraph.entry),
-    nodes: Object.keys(executionGraph.nodes),
-    edges: executionGraph.edges.map((e) => ({
-      from: String(e.from),
-      to: String(e.to),
-    })),
-    goals: goalNodes.map(String),
-    timestamp: Date.now(),
-  });
+  for (const goals of phases) {
+    const planCtx: RuntimeCtx<State> = {
+      state,
+      pending: {},
+      runtime: runtime ?? {
+        middleware: fullGraph.middleware ?? [],
+        context: {},
+      },
+    };
 
-  // Phase 2: Execute
-  return runGraphInternal(executionGraph, initArgs, opts);
+    const executionGraph = planGraph(fullGraph, goals as any, planCtx);
+
+    eventStream.emit({
+      type: "graph_planned",
+      entry: String(executionGraph.entry),
+      nodes: Object.keys(executionGraph.nodes),
+      edges: executionGraph.edges.map((e) => ({
+        from: String(e.from),
+        to: String(e.to),
+      })),
+      goals: goals.map(String),
+      timestamp: Date.now(),
+    });
+
+    const res = await runGraphInternal(executionGraph, state, {
+      ...opts,
+      runtime: planCtx.runtime,
+    });
+
+    state = res.state;
+    runtime = res.runtime;
+  }
+
+  return { state, runtime: runtime! };
 }

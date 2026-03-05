@@ -1,10 +1,12 @@
 import { executeWithPlanner } from "../planner/main.js";
 import {
   ExecutionRuntime,
+  GoalNodes,
   GraphEvent,
   GraphRunOptions,
   NodeMetric,
   SchemaGraph,
+  StringKey,
 } from "./types/index.js";
 
 // -----------------------------
@@ -28,12 +30,12 @@ export type GraphOutputFor<
 
 export type GraphRegistrar<R extends Record<string, SchemaGraph<any, any>>> = <
   K extends keyof R & string,
-  Goal extends keyof R[K]["nodes"],
+  Goal extends StringKey<R[K]["nodes"]>,
 >(
   name: K,
   params: GraphInputFor<R, K>,
   opts: GraphRunOptions & {
-    goals: Goal[];
+    goals: GoalNodes<Goal>;
   },
 ) => Promise<GraphOutputFor<R, K>>;
 // -----------------------------
