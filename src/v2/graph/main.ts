@@ -29,14 +29,23 @@ export const runGraphInternal = async <
 ) => {
   const concurrency = opts?.concurrency ?? 4;
 
+  // const runtime: ExecutionRuntime<State> = {
+  //   middleware: [
+  //     ...(graph.middleware ?? []),
+  //     ...(opts?.runtime?.middleware ?? []),
+  //   ],
+  //   context: {
+  //     ...(opts?.runtime?.context ?? {}),
+  //   },
+  // };
   const runtime: ExecutionRuntime<State> = {
     middleware: [
-      ...(graph.middleware ?? []),
-      ...(opts?.runtime?.middleware ?? []),
+      ...new Set([
+        ...(graph.middleware ?? []),
+        ...(opts?.runtime?.middleware ?? []),
+      ]),
     ],
-    context: {
-      ...(opts?.runtime?.context ?? {}),
-    },
+    context: { ...(opts?.runtime?.context ?? {}) },
   };
 
   // Ensure frame storage exists

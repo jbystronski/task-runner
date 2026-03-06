@@ -4,6 +4,7 @@ import {
   GraphEdge,
   GraphMiddleware,
 } from "./types/index.js";
+import { GoalFlowBuilder } from "./utils/goal-flow-builder.js";
 import { GraphValidator } from "./validation/main.js";
 
 export function createGraph<State = {}>(): GraphBuilder<{}, State> {
@@ -69,6 +70,49 @@ export function createGraph<State = {}>(): GraphBuilder<{}, State> {
       graphMiddleware.push(mw);
       return builder;
     },
+
+    // goal<Goal extends keyof typeof nodes & string>(
+    //   goal: Goal,
+    //   cb: (
+    //     f: GoalFlowBuilder<Goal, State, keyof typeof nodes & string>,
+    //   ) => GoalFlowBuilder<Goal, State, keyof typeof nodes & string>,
+    // ): GraphBuilder<any, State> {
+    //   const f = new GoalFlowBuilder<Goal, State, keyof typeof nodes & string>(
+    //     goal,
+    //     edges,
+    //   );
+    //   const flow = cb(f);
+    //   flow.buildEdges().forEach((e) => edges.push(e));
+    //   return builder;
+    // },
+
+    goal<Goal extends keyof typeof nodes & string>(
+      goal: Goal,
+      cb: (
+        f: GoalFlowBuilder<Goal, State, keyof typeof nodes & string>,
+      ) => void,
+    ): GraphBuilder<any, State> {
+      const f = new GoalFlowBuilder<Goal, State, keyof typeof nodes & string>(
+        goal,
+        edges,
+      );
+      cb(f); // edges are updated internally
+      return builder; // do NOT push buildEdges() again
+    },
+
+    // goal<Goal extends string>(
+    //   goal: Goal,
+    //   cb: (
+    //     f: GoalFlowBuilder<Goal, State, keyof typeof nodes & string>,
+    //   ) => GoalFlowBuilder<Goal, State, keyof typeof nodes & string>,
+    // ): GraphBuilder<any, State> {
+    //   type AllKeys = keyof typeof nodes & string;
+    //
+    //   // pass the shared edges array
+    //   const f = new GoalFlowBuilder<Goal, State, AllKeys>(goal, edges);
+    //   cb(f);
+    //   return builder;
+    // },
 
     build() {
       if (!entry) {

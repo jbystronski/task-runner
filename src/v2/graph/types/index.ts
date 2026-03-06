@@ -3,6 +3,8 @@
 //   log?: GraphLogger;
 // };
 
+import { GoalFlowBuilder } from "../utils/goal-flow-builder.js";
+
 export type GraphLogEvent =
   | "node_start"
   | "node_success"
@@ -144,6 +146,19 @@ export type GraphBuilder<
     when?: (ctx: RuntimeCtx<State>) => boolean, // Now fully typed!
   ): GraphBuilder<Nodes, State>;
 
+  /**
+   * Sugar method to define goal-oriented flows.
+   * Accepts a goal node and a callback that receives a GoalFlowBuilder.
+   * Generates implicit edges, compatible with the runner.
+   */
+
+  goal<Goal extends StringKey<Nodes>>(
+    goal: Goal,
+    cb: (
+      f: GoalFlowBuilder<Goal, State, keyof Nodes & string>,
+    ) => GoalFlowBuilder<Goal, State, keyof Nodes & string>,
+  ): GraphBuilder<Nodes, State>;
+
   build(): SchemaGraph<Nodes, State>;
 };
 
@@ -200,11 +215,5 @@ export type RuntimeCtx<State> = {
   runtime: ExecutionRuntime<State>;
 };
 
-export type GoalExpr<K> = (K | GoalExpr<K>)[];
-
-// export type GoalNodes<K extends string> = readonly (
-//   | K
-//   | readonly GoalNodes<K>
-// )[];
 export type GoalNodes<K extends string> = readonly (K | GoalNodes<K>)[];
 export type StringKey<T> = Extract<keyof T, string>;
