@@ -148,8 +148,12 @@ export const runGraphInternal = async <
             ctx.state as Record<string, any>,
             runtimeConfig.provide(result, ctx.state),
           );
-        } else if ((node.schema as any)[SUBGRAPH]) {
-          Object.assign(ctx.state as Record<string, any>, result);
+        }
+
+        if ((node.schema as any)[SUBGRAPH] && !runtimeConfig.provide) {
+          console.warn(
+            `Subgraph node "${String(key)}" executed without provide(). Result ignored.`,
+          );
         }
 
         return result;
