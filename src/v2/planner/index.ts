@@ -1,1 +1,5 @@
-export { executeWithPlanner as runGraph } from "./main.js";
+export {
+  executeWithPlanner as runGraph,
+  compilePlan,
+  executePlan,
+} from "./main.js";

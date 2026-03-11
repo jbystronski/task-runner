@@ -217,3 +217,14 @@ export type RuntimeCtx<State> = {
 
 export type GoalNodes<K extends string> = readonly (K | GoalNodes<K>)[];
 export type StringKey<T> = Extract<keyof T, string>;
+
+export type CompiledPlan<
+  Nodes extends Record<string, GraphNode<any, State>>,
+  State,
+> = {
+  phases: {
+    graph: SchemaGraph<Nodes, State>;
+    goals: (keyof Nodes)[];
+  }[];
+  middleware: GraphMiddleware<State>[];
+};
