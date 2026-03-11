@@ -52,7 +52,7 @@ export const runGraphInternal = async <
   runtime.context.frames ??= {};
 
   const ctx: RuntimeCtx<State> = {
-    state: { ...initArgs } as State,
+    state: initArgs as State,
     pending: {},
     runtime,
   };

@@ -12,7 +12,7 @@ export class GraphSession<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
 > {
-  private state: State;
+  private state: Partial<State>;
   private running = false;
   private queue: Array<{
     partial: Partial<State>;
@@ -22,7 +22,7 @@ export class GraphSession<
 
   constructor(
     private graph: SchemaGraph<Nodes, State>,
-    initialState: State,
+    initialState: Partial<State>,
     private opts?: GraphRunOptions,
   ) {
     this.state = initialState;
