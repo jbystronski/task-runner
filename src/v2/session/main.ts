@@ -12,6 +12,8 @@ export class GraphSession<
   Nodes extends Record<string, GraphNode<any, State>>,
   State,
 > {
+  private subscribers = new Set<(state: Partial<State>) => void>();
+
   private state: Partial<State>;
   private running = false;
   private queue: Array<{
@@ -26,6 +28,21 @@ export class GraphSession<
     private opts?: GraphRunOptions,
   ) {
     this.state = initialState;
+  }
+
+  subscribe(fn: (state: Partial<State>) => void) {
+    this.subscribers.add(fn);
+
+    // immediately send current state
+    fn(this.state);
+
+    return () => this.subscribers.delete(fn);
+  }
+
+  private notify() {
+    for (const sub of this.subscribers) {
+      sub(this.state);
+    }
   }
 
   listen(listener: GraphListener<Nodes, State>) {
@@ -61,6 +78,7 @@ export class GraphSession<
 
       // Persist new state from execution
       Object.assign(this.state as any, result.state);
+      this.notify();
     }
 
     this.running = false;
