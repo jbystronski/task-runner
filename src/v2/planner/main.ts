@@ -200,7 +200,7 @@ export async function executeWithPlanner<
 }> {
   const phases = normalizeGoalPhases<StringKey<Nodes>>(goalExpr);
 
-  let state = { ...initArgs } as State;
+  let state = initArgs as State;
   let runtime: ExecutionRuntime<State> | undefined;
 
   for (const goals of phases) {
@@ -251,7 +251,7 @@ export function compilePlan<
 
   const plans = [];
 
-  let state = { ...(initArgs ?? {}) } as State;
+  let state = (initArgs ?? {}) as State;
   let runtime: ExecutionRuntime<State> | undefined;
 
   for (const goals of phases) {
@@ -285,7 +285,7 @@ export async function executePlan<
   initArgs: Partial<State>,
   opts?: GraphRunOptions,
 ) {
-  let state = { ...initArgs } as State;
+  let state = initArgs as State;
 
   let runtime: ExecutionRuntime<State> = {
     middleware: plan.middleware,
