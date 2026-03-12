@@ -120,22 +120,96 @@ export type NodeRuntimeConfig<FN extends WrappedSchema<any, any>, State> = {
   middleware?: GraphMiddleware<State>[];
 };
 
+// type GraphState<G> = G extends SchemaGraph<any, infer S> ? S : never;
+//
+// export type GraphBuilder<
+//   Nodes extends Record<string, GraphNode<any, State>> = {},
+//   State = {},
+// > = {
+//   extend<G extends SchemaGraph<any, State>>(
+//     graph: G,
+//   ): GraphBuilder<Nodes & GraphNodes<G>, State>;
+//
+//   use(mw: GraphMiddleware<State>): GraphBuilder<Nodes, State>;
+//
+//   node<K extends string, FN extends WrappedSchema<any, any>>(
+//     key: K,
+//     schema: FN,
+//
+//     runtime?: NodeRuntimeConfig<FN, State>,
+//   ): GraphBuilder<Nodes & Record<K, GraphNode<FN, State>>, State>;
+//   edge<
+//     From extends Extract<keyof Nodes, string>,
+//     To extends Extract<keyof Nodes, string>,
+//   >(
+//     from: From,
+//     to: To,
+//     goals?: Extract<keyof Nodes, string>[],
+//     when?: (ctx: RuntimeCtx<State>) => boolean, // Now fully typed!
+//   ): GraphBuilder<Nodes, State>;
+//
+//   /**
+//    * Sugar method to define goal-oriented flows.
+//    * Accepts a goal node and a callback that receives a GoalFlowBuilder.
+//    * Generates implicit edges, compatible with the runner.
+//    */
+//
+//   goal<Goal extends StringKey<Nodes>>(
+//     goal: Goal,
+//     cb: (
+//       f: GoalFlowBuilder<Goal, State, keyof Nodes & string>,
+//     ) => GoalFlowBuilder<Goal, State, keyof Nodes & string>,
+//   ): GraphBuilder<Nodes, State>;
+//
+//   build(): SchemaGraph<Nodes, State>;
+// };
+
+type GraphState<G> = G extends SchemaGraph<any, infer S> ? S : never;
+// export type PartialRuntime<State> = {
+//   expect?: (state: State, base?: any) => any;
+//   provide?: (result: any, state: State) => Partial<State>;
+//   middleware?: GraphMiddleware<State>[];
+// };
+
+type PartialRuntime<Node extends GraphNode<any, any>, State> = {
+  expect?: Node["runtime"] extends { expect?: infer E }
+    ? E
+    : (state: State, base?: any) => any;
+
+  provide?: Node["schema"] extends WrappedSchema<any, infer O>
+    ? (result: O, state: State) => Partial<State>
+    : (result: any, state: State) => Partial<State>;
+
+  middleware?: GraphMiddleware<State>[];
+};
 export type GraphBuilder<
   Nodes extends Record<string, GraphNode<any, State>> = {},
   State = {},
 > = {
-  extend<G extends SchemaGraph<any, State>>(
+  extend<G extends SchemaGraph<any, any>>(
     graph: G,
-  ): GraphBuilder<Nodes & GraphNodes<G>, State>;
+  ): GraphBuilder<Nodes & GraphNodes<G>, State & GraphState<G>>;
 
   use(mw: GraphMiddleware<State>): GraphBuilder<Nodes, State>;
 
   node<K extends string, FN extends WrappedSchema<any, any>>(
     key: K,
     schema: FN,
-
     runtime?: NodeRuntimeConfig<FN, State>,
   ): GraphBuilder<Nodes & Record<K, GraphNode<FN, State>>, State>;
+
+  // 2️⃣ Node **patch**: override only runtime of existing node
+  // node<K extends Extract<keyof Nodes, string>>(
+  //   key: K,
+  //   runtimePatch: PartialRuntime<State>,
+  // ): GraphBuilder<Nodes, State>;
+
+  // 2️⃣ Override **runtime** of an existing node
+  node<K extends Extract<keyof Nodes, string>>(
+    key: K,
+    runtimePatch: PartialRuntime<Nodes[K], State>,
+  ): GraphBuilder<Nodes, State>;
+
   edge<
     From extends Extract<keyof Nodes, string>,
     To extends Extract<keyof Nodes, string>,
@@ -143,14 +217,8 @@ export type GraphBuilder<
     from: From,
     to: To,
     goals?: Extract<keyof Nodes, string>[],
-    when?: (ctx: RuntimeCtx<State>) => boolean, // Now fully typed!
+    when?: (ctx: RuntimeCtx<State>) => boolean,
   ): GraphBuilder<Nodes, State>;
-
-  /**
-   * Sugar method to define goal-oriented flows.
-   * Accepts a goal node and a callback that receives a GoalFlowBuilder.
-   * Generates implicit edges, compatible with the runner.
-   */
 
   goal<Goal extends StringKey<Nodes>>(
     goal: Goal,
